@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 from python_calamine import CalamineWorkbook
 import json
@@ -417,6 +418,8 @@ class ExcelEquipmentAnalyzer:
         """
         Save analysis results to JSON file
         """
+        folder_path = 'CaseStudy1Resources'
+        complete_path = os.path.join(folder_path, output_file)
         if not self.analysis_results:
             self.analyze()
         
