@@ -1,6 +1,6 @@
 # equipment.py
 from typing import List, Dict, Any, Optional
-from equipment_component import Component
+from .equipment_component import Component
 
 class Equipment:
     def __init__(self, equipment_number: str, pmt_number: str, equipment_description: str, row_index: Optional[int] = None):

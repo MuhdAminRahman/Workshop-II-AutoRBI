@@ -2,9 +2,10 @@
 from openpyxl import load_workbook
 import logging
 from typing import List, Dict, Optional
-from equipment import Equipment
-from equipment_component import Component
+from models import Equipment, Component
 import os
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,7 @@ class ExcelManager:
         self.file_path = file_path
         self.wb = load_workbook(file_path)
         self.equipment_map: Dict[str, Equipment] = {}
+        self.default_path = "src\output_files"
     
     def read_masterfile(self) -> Dict[str, Equipment]:
         """
@@ -173,7 +175,7 @@ class ExcelManager:
                     components.append(component)
         return components
     
-    def save_to_excel(self, output_path: Optional[str] = None) -> bool:
+    def save_to_excel(self, user_id: Optional[int] = None) -> bool:
         """
         Save the modified data back to Excel file
         """
@@ -196,10 +198,18 @@ class ExcelManager:
                         ws[f'O{row}'] = component.get_existing_data_value('operating_pressure')
             
             # Determine output path
-            if output_path is None:
+            if user_id is None:
+                os.makedirs(os.path.join(self.default_path, "default", "excel"), exist_ok=True)
                 base, ext = os.path.splitext(self.file_path)
-                output_path = f"{base}_modified{ext}"
-            
+                path, base_name = os.path.split(base)
+                path = "default/excel"
+                output_path = os.path.join(self.default_path,path, f"{base_name}_modified{ext}")
+            else:
+                os.makedirs(os.path.join(self.default_path, f"user_{user_id}", "excel"), exist_ok=True)
+                base, ext = os.path.splitext(self.file_path)
+                path, base_name = os.path.split(base)
+                path = f"user_{user_id}/excel"
+                output_path = os.path.join(self.default_path, path, f"{user_id}_{base_name}_modified{ext}")
             # Save the workbook
             self.wb.save(output_path)
             logger.info(f"✅ Excel file saved successfully: {output_path}")
@@ -254,4 +264,6 @@ if __name__ == "__main__":
     )
     
     # Save modified file
-    #extractor.save_to_excel()
+    extractor.save_to_excel()
+    #Save with user ID
+    #extractor.save_to_excel(user_id=123)
