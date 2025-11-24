@@ -1,2 +1,0 @@
-"""AutoRBI src package."""
-
