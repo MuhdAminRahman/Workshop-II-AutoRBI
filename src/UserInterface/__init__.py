@@ -1,6 +1,21 @@
-"""UserInterface package for AutoRBI application."""
+"""UserInterface package containing view classes."""
 
-from .app import AutoRBIApp
+from .views import (
+    AnalyticsView,
+    LoginView,
+    MainMenuView,
+    NewWorkView,
+    RegistrationView,
+    ReportMenuView,
+    WorkHistoryView,
+)
 
-__all__ = ["AutoRBIApp"]
-
+__all__ = [
+    "AnalyticsView",
+    "LoginView",
+    "MainMenuView",
+    "NewWorkView",
+    "RegistrationView",
+    "ReportMenuView",
+    "WorkHistoryView",
+]
