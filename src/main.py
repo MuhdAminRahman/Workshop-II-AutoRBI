@@ -8,9 +8,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def main() -> None:
     """Run the AutoRBI application."""
-    #app = AutoRBIApp()
-    #app.mainloop()
-    test_DataExtractor()
+    app = AutoRBIApp()
+    app.mainloop()
+    #test_DataExtractor()
 
 
 def test_DataExtractor():

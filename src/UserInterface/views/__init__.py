@@ -7,6 +7,8 @@ from .new_work import NewWorkView
 from .report_menu import ReportMenuView
 from .work_history import WorkHistoryView
 from .analytics import AnalyticsView
+from .settings import SettingsView
+from .profile import ProfileView
 
 __all__ = [
     "LoginView",
@@ -16,5 +18,7 @@ __all__ = [
     "ReportMenuView",
     "WorkHistoryView",
     "AnalyticsView",
+    "SettingsView",
+    "ProfileView",
 ]
 

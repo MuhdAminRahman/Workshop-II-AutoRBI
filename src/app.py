@@ -1,7 +1,8 @@
 """Main application class for AutoRBI."""
 
-import tkinter as tk
 from tkinter import messagebox
+
+import customtkinter as ctk
 
 import styles
 from UserInterface.views import (
@@ -12,17 +13,24 @@ from UserInterface.views import (
     RegistrationView,
     ReportMenuView,
     WorkHistoryView,
+    SettingsView,
+    ProfileView,
 )
+from UserInterface.components import NotificationSystem, LoadingOverlay
 
 
-class AutoRBIApp(tk.Tk):
-    """Main window coordinating all AutoRBI views."""
+class AutoRBIApp(ctk.CTk):
+    """Main window coordinating all AutoRBI views (CustomTkinter)."""
 
     def __init__(self) -> None:
         super().__init__()
+
+        # Global CustomTkinter look & feel
+        styles.configure_styles()
+
         self.title("AutoRBI")
-        self.geometry("1000x700")
-        self.minsize(900, 650)
+        self.geometry("1100x720")
+        self.minsize(1000, 680)
 
         # Center window on screen
         self.update_idletasks()
@@ -32,8 +40,9 @@ class AutoRBIApp(tk.Tk):
         y_pos = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f"{width}x{height}+{x_pos}+{y_pos}")
 
-        # Configure ttk styles
-        styles.configure_styles(self)
+        # Initialize notification system and loading overlay
+        self.notification_system = NotificationSystem(self)
+        self.loading_overlay = LoadingOverlay(self)
 
         # Initialize views
         self.login_view = LoginView(self, self)
@@ -43,6 +52,15 @@ class AutoRBIApp(tk.Tk):
         self.report_menu_view = ReportMenuView(self, self)
         self.work_history_view = WorkHistoryView(self, self)
         self.analytics_view = AnalyticsView(self, self)
+        self.settings_view = SettingsView(self, self)
+        self.profile_view = ProfileView(self, self)
+
+        # Current user info (TODO: Get from authentication)
+        self.current_user = {
+            "username": "John Doe",
+            "role": "Engineer",
+            "email": "john.doe@ipetro.com",
+        }
 
         # Show login screen initially
         self.show_login()
@@ -78,8 +96,33 @@ class AutoRBIApp(tk.Tk):
         """Display the Analytics Dashboard view."""
         self.analytics_view.show()
 
+    def show_settings(self) -> None:
+        """Display the Settings view."""
+        self.settings_view.show()
+
+    def show_profile(self) -> None:
+        """Display the Profile view."""
+        self.profile_view.show()
+
     def logout(self) -> None:
         """Prompt user for logout confirmation and return to login."""
         if messagebox.askyesno("Logout", "Are you sure you want to logout?"):
+            self.notification_system.clear_all()
             self.show_login()
+
+    def show_notification(self, message: str, notification_type: str = "info", duration: int = 5000) -> None:
+        """Show a notification."""
+        self.notification_system.show_notification(message, notification_type, duration)
+
+    def show_loading(self, message: str = "Loading...", show_progress: bool = False) -> None:
+        """Show loading overlay."""
+        self.loading_overlay.show(message, show_progress)
+
+    def hide_loading(self) -> None:
+        """Hide loading overlay."""
+        self.loading_overlay.hide()
+
+    def update_loading_progress(self, value: float, message: str = None) -> None:
+        """Update loading progress (0.0 to 1.0)."""
+        self.loading_overlay.update_progress(value, message)
 
