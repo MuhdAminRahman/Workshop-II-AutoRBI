@@ -76,9 +76,27 @@ MAJOR CHANGES
    - Integrated into Save to Excel operations
    - Skeleton loader component for content placeholders
 
-9. NEW VIEWS
-   - Settings View: Theme selection, notification preferences
-   - Profile View: User information display and editing
+10. NEW VIEWS
+    - Settings View: Theme selection, notification preferences
+    - Profile View: User information display and editing
+
+11. TODO COMMENTS STANDARDIZATION (Latest)
+    - All TODO comments standardized to consistent format
+    - Format: # TODO: Backend - [description]
+    - Standardized across all view files:
+      * login.py
+      * registration.py
+      * new_work.py
+      * report_menu.py
+      * work_history.py
+      * analytics.py
+      * settings.py
+      * profile.py
+      * main_menu.py
+      * loading_states.py
+      * notification_system.py
+    - Makes TODO identification and tracking easier for backend developers
+    - Enables grep/search to find all integration points quickly
 
 ================================================================================
 VIEW-BY-VIEW CHANGES
@@ -112,21 +130,56 @@ VIEW-BY-VIEW CHANGES
    - Each card has title, description, and "Open" button
    - Grid layout (2x2) for menu cards
    - Click-outside detection for dropdowns
+   
+   - EXCEL UPLOAD FEATURE (New):
+     * Checks if Excel file exists in src/output_files/*/excel/
+     * If no Excel found: Shows notice with two action buttons
+       - "Upload Excel Sheet" button: Opens file dialog to select .xlsx/.xls
+       - "New Work" button: Quick shortcut to extraction workflow
+     * Copies selected Excel to default/excel/ folder
+     * Displays success/error message after upload
+     * Refreshes menu display after upload
+   
+   - Helper Methods:
+     * _excel_exists() -> bool: Scans for Excel files in output directories
+     * _handle_upload_excel() -> None: File dialog and copy logic
 
 4. NEW WORK VIEW (src/UserInterface/views/new_work.py)
-   - Complete workflow implementation:
-     * File selection mode (single/multiple)
-     * File browser for PDF, JPG, JPEG files
+   - Two-page extraction workflow (redesigned):
+     
+     PAGE 1: Upload & Extract
+     * PDF/Image file selection (multi-select support)
+     * Excel sheet upload option
+     * Extraction log textbox showing live status updates
+     * Next button appears after extraction completes
      * Progress bar for extraction status
-     * Per-file extracted data fields (one editable textbox per file)
-     * File name displayed above each field
-     * Save button at bottom right to confirm edits
-   - Scrollable content area
-   - Selected files list display
-   - Helper methods for backend integration
-   - Loading overlay integration for extraction process
-   - Progress updates with status messages
-   - Notification integration for completion alerts
+     * Loading overlay integration
+     
+     PAGE 2: Review & Edit
+     * Dynamic table format matching masterfile (15 columns):
+       - NO. | EQUIPMENT NO. | PMT NO. | EQUIPMENT DESCRIPTION | PARTS
+       - PHASE | FLUID | TYPE | SPEC. | GRADE | INSULATION
+       - DESIGN TEMP. | DESIGN PRESSURE | OPERATING TEMP. | OPERATING PRESSURE
+     * One row per extracted equipment
+     * Editable cells for all columns
+     * Save button to confirm changes
+     * Dynamic row generation based on equipment count
+     
+   - Key Features:
+     * File reference tracking (file_to_textboxes mapping)
+     * Multiple file support (separate editable fields per file)
+     * Real-time extraction status logging
+     * Backend integration hooks:
+       - set_extracted_equipment_data(file_path, equipment_list)
+       - append_extraction_log(message)
+       - set_progress(value, text)
+   
+   - Data Structure:
+     * extracted_equipment_data: Dict[file_path, List[Dict]]
+     * Equipment dict keys: 'equipment_no', 'pmt_no', 'description', 'parts',
+                           'phase', 'fluid', 'type', 'spec', 'grade',
+                           'insulation', 'design_temp', 'design_pressure',
+                           'operating_temp', 'operating_pressure'
 
 5. REPORT MENU VIEW (src/UserInterface/views/report_menu.py)
    - Professional table format with headers:

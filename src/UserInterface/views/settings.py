@@ -13,6 +13,9 @@ class SettingsView:
 
     def show(self) -> None:
         """Display the Settings interface."""
+        # TODO: Backend - Load user preferences from database
+        # TODO: Backend - Load theme, language, notification settings
+        # TODO: Backend - Return saved user settings
         # Clear existing widgets
         for widget in self.parent.winfo_children():
             widget.destroy()
@@ -139,6 +142,9 @@ class SettingsView:
 
     def _change_theme(self, theme: str) -> None:
         """Change application theme."""
+        # TODO: Backend - Save theme preference to database
+        # TODO: Backend - Apply theme to all UI components
+        # TODO: Backend - Return confirmation of theme change
         import customtkinter as ctk
         ctk.set_appearance_mode(theme)
 

@@ -13,6 +13,9 @@ class ProfileView:
 
     def show(self) -> None:
         """Display the Profile interface."""
+        # TODO: Backend - Load user profile data from database
+        # TODO: Backend - Fetch user statistics (extractions, reports generated)
+        # TODO: Backend - Load profile picture/avatar
         # Clear existing widgets
         for widget in self.parent.winfo_children():
             widget.destroy()
@@ -85,14 +88,14 @@ class ProfileView:
         # User info
         username_label = ctk.CTkLabel(
             profile_section,
-            text="John Doe",  # TODO: Get from backend
+            text="John Doe",  # TODO: Backend - Get from backend
             font=("Segoe UI", 20, "bold"),
         )
         username_label.pack(pady=(0, 4))
 
         role_label = ctk.CTkLabel(
             profile_section,
-            text="Engineer",  # TODO: Get from backend
+            text="Engineer",  # TODO: Backend - Get from backend
             font=("Segoe UI", 12),
             text_color=("gray50", "gray70"),
         )

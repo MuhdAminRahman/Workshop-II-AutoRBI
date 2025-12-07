@@ -43,6 +43,9 @@ class ReportMenuView:
 
     def _open_pdf_preview(self, report: Dict[str, Any]) -> None:
         """Open a popup for PDF preview with download option (backend wiring required)."""
+        # TODO: Backend - Load PDF file from storage
+        # TODO: Backend - Convert PDF pages to images for preview
+        # TODO: Backend - Stream images to UI for display
         popup = ctk.CTkToplevel(self.parent)
         popup.title(f"PDF Preview - {report.get('name', '')}")
         popup.geometry("800x600")
@@ -90,17 +93,20 @@ class ReportMenuView:
 
     def _export_pdf(self, report: Dict[str, Any]) -> None:
         """Generate PDF for the given report (backend implementation needed)."""
-        # TODO: delegate to controller/backend
+        # TODO: Backend - Generate PDF from report data
+        # TODO: Backend - Include equipment, components, extracted data
+        # TODO: Backend - Return PDF file path for download
+        # TODO: Backend - Delegate to controller/backend for PDF export
         pass
 
     def _export_ppt(self, report: Dict[str, Any]) -> None:
         """Generate PowerPoint for the given report (backend implementation needed)."""
-        # TODO: delegate to controller/backend
+        # TODO: Backend - Delegate to controller/backend for PowerPoint export
         pass
 
     def _export_excel(self, report: Dict[str, Any]) -> None:
         """Open/export the underlying Excel file (backend implementation needed)."""
-        # TODO: delegate to controller/backend
+        # TODO: Backend - Delegate to controller/backend for Excel export
         pass
 
     def _add_report_row(self, index: int, report: Dict[str, Any]) -> None:

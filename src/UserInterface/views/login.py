@@ -143,7 +143,10 @@ class LoginView:
                     "Login Error", "Please enter both username and password."
                 )
                 return
-            # TODO: Integrate with backend authentication
+            # TODO: Backend - Authenticate user credentials against database
+            # TODO: Backend - Validate username and password
+            # TODO: Backend - Load user session and profile data
+            # TODO: Backend - Return success/error status
             # if backend.authenticate(username, password):
             self.controller.show_main_menu()
             # else:

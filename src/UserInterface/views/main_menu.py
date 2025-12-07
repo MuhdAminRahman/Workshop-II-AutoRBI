@@ -6,6 +6,8 @@ from typing import Optional
 
 from PIL import Image
 import customtkinter as ctk
+from tkinter import filedialog, messagebox
+import shutil
 
 
 class MainMenuView:
@@ -31,12 +33,29 @@ class MainMenuView:
 
     def _update_datetime(self) -> None:
         """Update the datetime label every second."""
-        if self._datetime_label is None:
+        # Ensure label still exists before updating (may be destroyed when navigating)
+        try:
+            if self._datetime_label is None or not self._datetime_label.winfo_exists():
+                return
+        except Exception:
             return
-        now = datetime.now().strftime("%d %b %Y  •  %I:%M:%S %p")
-        self._datetime_label.configure(text=now)
-        # Schedule next update
-        self.parent.after(1000, self._update_datetime)
+
+        try:
+            now = datetime.now().strftime("%d %b %Y  •  %I:%M:%S %p")
+            # Double-check widget exists before configuring
+            if not self._datetime_label.winfo_exists():
+                return
+            self._datetime_label.configure(text=now)
+        except Exception:
+            # Protect against TclError if widget was destroyed between checks
+            return
+
+        # Schedule next update only if parent window still exists
+        try:
+            if hasattr(self.parent, 'winfo_exists') and self.parent.winfo_exists():
+                self.parent.after(1000, self._update_datetime)
+        except Exception:
+            pass
 
     def show(self) -> None:
         """Display the main menu interface."""
@@ -111,7 +130,7 @@ class MainMenuView:
         # Username label (optional - can be hidden)
         username_label = ctk.CTkLabel(
             profile_section,
-            text="John Doe",  # TODO: Get from backend
+            text="John Doe",  # TODO: Backend - Get from backend
             font=("Segoe UI", 11),
             text_color=("gray60", "gray80"),
         )
@@ -220,6 +239,39 @@ class MainMenuView:
             text_color=("gray25", "gray80"),
         )
         subtitle_label.grid(row=0, column=0, sticky="w", padx=24, pady=(44, 24))
+
+        # Check for presence of master Excel file(s). If missing, show notice with actions.
+        if not self._excel_exists():
+            notice_frame = ctk.CTkFrame(main_frame, fg_color=("#FFF5EA", "#3A2A1A"), corner_radius=8)
+            notice_frame.grid(row=0, column=0, sticky="e", padx=24, pady=(8, 0))
+            notice_frame.grid_columnconfigure(0, weight=1)
+
+            notice_label = ctk.CTkLabel(
+                notice_frame,
+                text="No master Excel found. Upload an Excel sheet to proceed.",
+                font=("Segoe UI", 11),
+                text_color=("#7A4A2A", "#FFD9B8"),
+            )
+            notice_label.grid(row=0, column=0, sticky="w", padx=12, pady=(8, 8))
+
+            btn_frame = ctk.CTkFrame(notice_frame, fg_color="transparent")
+            btn_frame.grid(row=1, column=0, sticky="e", padx=12, pady=(0, 8))
+
+            upload_btn = ctk.CTkButton(
+                btn_frame,
+                text="Upload Excel",
+                command=self._handle_upload_excel,
+                height=28,
+            )
+            upload_btn.pack(side="right", padx=(8, 0))
+
+            newwork_btn = ctk.CTkButton(
+                btn_frame,
+                text="New Work",
+                command=self.controller.show_new_work,
+                height=28,
+            )
+            newwork_btn.pack(side="right")
 
         # Menu buttons container (grid of cards)
         buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
@@ -351,6 +403,41 @@ class MainMenuView:
                 )
                 item_btn.pack(fill="x", padx=8, pady=2)
 
+    def _excel_exists(self) -> bool:
+        """Return True if any .xlsx/.xls file exists under output_files/*/excel."""
+        try:
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+            base = os.path.join(project_root, "src", "output_files")
+            if not os.path.isdir(base):
+                return False
+            for userdir in os.listdir(base):
+                excel_dir = os.path.join(base, userdir, "excel")
+                if os.path.isdir(excel_dir):
+                    for fname in os.listdir(excel_dir):
+                        if fname.lower().endswith(('.xlsx', '.xls')):
+                            return True
+            return False
+        except Exception:
+            return False
+
+    def _handle_upload_excel(self) -> None:
+        """Prompt user to select an Excel file and copy it to default excel folder."""
+        filetypes = [("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
+        path = filedialog.askopenfilename(title="Select Master Excel file", filetypes=filetypes)
+        if not path:
+            return
+        try:
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+            dest_dir = os.path.join(project_root, "src", "output_files", "default", "excel")
+            os.makedirs(dest_dir, exist_ok=True)
+            dest_path = os.path.join(dest_dir, os.path.basename(path))
+            shutil.copy2(path, dest_path)
+            messagebox.showinfo("Upload Complete", "Master Excel uploaded successfully.")
+            # Refresh main menu to remove notice
+            self.show()
+        except Exception as e:
+            messagebox.showerror("Upload Failed", f"Failed to upload Excel file:\n{e}")
+
     def _hide_profile_dropdown(self) -> None:
         """Hide profile dropdown menu."""
         self.profile_dropdown_open = False
@@ -419,7 +506,7 @@ class MainMenuView:
         )
         header_label.pack(pady=(12, 8), padx=12)
 
-        # TODO: Get actual search results from backend
+        # TODO: Backend - Get actual search results from backend
         # For now, show placeholder results
         results = [
             ("📄 Report: Equipment Analysis", "Report Menu"),

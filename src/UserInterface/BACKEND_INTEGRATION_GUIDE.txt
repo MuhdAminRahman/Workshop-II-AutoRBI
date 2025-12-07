@@ -811,46 +811,105 @@ Edited Data Dictionary:
 }
 
 ================================================================================
-QUICK REFERENCE: TODO LOCATIONS
+TODO COMMENTS STANDARDIZATION
+================================================================================
+
+All TODO comments in the UserInterface folder have been standardized to a
+consistent format for easy identification:
+
+FORMAT: # TODO: Backend - [description of required implementation]
+
+This format makes it easy for backend developers to:
+1. Search for all TODOs using grep/find
+2. Understand what needs to be implemented
+3. See the scope of required backend work at a glance
+
+BENEFITS:
+- Consistent naming convention across all views
+- Easy to identify backend integration points
+- Clear distinction between UI code and backend placeholders
+- Facilitates code reviews and task assignment
+
+================================================================================
+QUICK REFERENCE: TODO LOCATIONS AND FORMATS
 ================================================================================
 
 login.py:
-  - Line 107: Authentication integration
+  # TODO: Backend - Authenticate user credentials against database
+  # TODO: Backend - Validate username and password
+  # TODO: Backend - Load user session and profile data
+  # TODO: Backend - Return success/error status
 
 registration.py:
-  - Line 92: Registration integration
+  # TODO: Backend - Integrate with backend registration and user creation
 
-new_work.py:
-  - Line 125: Start extraction integration
-  - Line 162: Save to Excel integration
+new_work.py (EXTRACTION FLOW):
+  # TODO: Backend - Call extraction service with self.selected_files
+  # TODO: Backend - Call append_extraction_log() to send live status updates
+  # TODO: Backend - Call set_extracted_equipment_data() to populate table
+  # TODO: Backend - Call set_progress() to update progress bar
+  # TODO: Backend - Call extraction service and save results to Excel/database
+  # TODO: Backend - Retrieve edited data from self.file_to_textboxes
+  # TODO: Backend - Validate edited data against masterfile schema
+  # TODO: Backend - Update Excel file with edited equipment data
+  # TODO: Backend - Save to database
+  # TODO: Backend - Return status: success/error for notification
+  # TODO: Backend - Delegate to controller/backend for file validation
+  # TODO: Backend - Validate Excel file format (check sheets, columns)
+  # TODO: Backend - Verify Excel contains valid masterfile structure
+  # TODO: Backend - Load and cache equipment data for later use
 
 report_menu.py:
-  - Line 49-57: PDF preview rendering
-  - Line 82: PDF export integration
-  - Line 87: PPT export integration
-  - Line 92: Excel export integration
+  # TODO: Backend - Load PDF file from storage
+  # TODO: Backend - Convert PDF pages to images for preview
+  # TODO: Backend - Stream images to UI for display
+  # TODO: Backend - Generate PDF from report data
+  # TODO: Backend - Include equipment, components, extracted data
+  # TODO: Backend - Return PDF file path for download
+  # TODO: Backend - Delegate to controller/backend for PDF export
+  # TODO: Backend - Delegate to controller/backend for PowerPoint export
+  # TODO: Backend - Delegate to controller/backend for Excel export
 
 work_history.py:
-  - Line 37: Date filtering implementation
-  - Line 52: View details integration
-  - Line 57: Export work integration
-  - Line 62: Delete work integration
+  # TODO: Backend - Implement date-based filtering when backend provides data
+  # TODO: Backend - Delegate to controller/backend for details loading
+  # TODO: Backend - Generate Excel file with work item data
+  # TODO: Backend - Generate PDF report with work item details
+  # TODO: Backend - Return file path for download
+  # TODO: Backend - Delegate to controller/backend for export processing
+  # TODO: Backend - Delegate to controller/backend for work item deletion
 
 analytics.py:
-  - Line 34: Additional KPI card updates
-  - Line 39: Period change data reload
-  - Line 200-234: Chart rendering
-
-main_menu.py:
-  - Line ~98: Search functionality integration
-  - Line ~115-130: User profile data integration
+  # TODO: Backend - Query analytics database for metrics
+  # TODO: Backend - Calculate KPIs: total works, success rate, avg time
+  # TODO: Backend - Aggregate equipment and component statistics
+  # TODO: Backend - Support time period filtering (daily, weekly, monthly)
+  # TODO: Backend - Query analytics for selected time period
+  # TODO: Backend - Calculate metrics for the period
+  # TODO: Backend - Return updated KPI values
 
 settings.py:
-  - Save settings integration
+  # TODO: Backend - Load user preferences from database
+  # TODO: Backend - Load theme, language, notification settings
+  # TODO: Backend - Return saved user settings
+  # TODO: Backend - Save theme preference to database
+  # TODO: Backend - Apply theme to all UI components
+  # TODO: Backend - Return confirmation of theme change
 
 profile.py:
-  - Load user data integration
-  - Edit profile integration
+  # TODO: Backend - Load user profile data from database
+  # TODO: Backend - Fetch user statistics (extractions, reports generated)
+  # TODO: Backend - Load profile picture/avatar
+  # TODO: Backend - Get from backend (username display)
+  # TODO: Backend - Get from backend (role display)
+
+main_menu.py:
+  # TODO: Backend - Get from backend (username display)
+  # TODO: Backend - Get actual search results from backend
+
+loading_states.py:
+  # TODO: Backend - Can optionally enable overlay for long-running operations
+  # TODO: Backend - Send progress updates via update_progress() method
 
 ================================================================================
 TESTING CHECKLIST

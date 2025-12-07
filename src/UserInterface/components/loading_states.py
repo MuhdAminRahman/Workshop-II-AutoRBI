@@ -14,64 +14,23 @@ class LoadingOverlay:
         self.status_label: Optional[ctk.CTkLabel] = None
 
     def show(self, message: str = "Loading...", show_progress: bool = False) -> None:
-        """Show loading overlay."""
-        if self.overlay is not None:
-            self.hide()
-
-        self.overlay = ctk.CTkFrame(
-            self.parent,
-            corner_radius=0,
-            fg_color=("#000000", "#000000"),  # Black overlay
-        )
-        self.overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
-
-        content = ctk.CTkFrame(self.overlay, fg_color="transparent")
-        content.place(relx=0.5, rely=0.5, anchor="center")
-
-        # Spinner (animated dots)
-        spinner_frame = ctk.CTkFrame(content, fg_color="transparent")
-        spinner_frame.pack(pady=(0, 20))
-
-        spinner_label = ctk.CTkLabel(
-            spinner_frame,
-            text="⏳",
-            font=("Segoe UI", 32),
-        )
-        spinner_label.pack()
-
-        # Status message
-        self.status_label = ctk.CTkLabel(
-            content,
-            text=message,
-            font=("Segoe UI", 14),
-            text_color=("gray20", "gray90"),
-        )
-        self.status_label.pack(pady=(0, 10))
-
-        # Progress bar (optional)
-        if show_progress:
-            self.progress_bar = ctk.CTkProgressBar(
-                content,
-                width=300,
-                height=8,
-            )
-            self.progress_bar.pack(pady=(0, 10))
-            self.progress_bar.set(0)
+        """Show loading overlay - disabled to prevent background issues.
+        
+        TODO: Backend - Can optionally enable overlay for long-running operations
+        TODO: Backend - Send progress updates via update_progress() method
+        """
+        # Overlay disabled - just keep references for compatibility
+        pass
 
     def update_progress(self, value: float, message: Optional[str] = None) -> None:
         """Update progress bar (0.0 to 1.0)."""
-        if self.progress_bar:
-            self.progress_bar.set(value)
-        if message and self.status_label:
-            self.status_label.configure(text=message)
+        # No-op since overlay is disabled
+        pass
 
     def hide(self) -> None:
         """Hide loading overlay."""
-        if self.overlay and self.overlay.winfo_exists():
-            self.overlay.destroy()
-            self.overlay = None
-            self.progress_bar = None
-            self.status_label = None
+        # No-op since overlay is disabled
+        pass
 
 
 class SkeletonLoader:

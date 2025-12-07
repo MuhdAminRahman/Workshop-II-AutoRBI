@@ -189,7 +189,7 @@ class RegistrationView:
                 )
                 return
 
-            # TODO: Integrate with backend registration
+            # TODO: Backend - Integrate with backend registration and user creation
             # if backend.register(fullname, username, password):
             messagebox.showinfo(
                 "Success", "Registration successful! You can now login."

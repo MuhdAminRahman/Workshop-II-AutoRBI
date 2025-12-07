@@ -18,6 +18,11 @@ class AnalyticsView:
         
         metrics dict can contain keys like:
         {"total_works": int, "success_rate": float, "avg_time": float, "total_files": int}
+        
+        # TODO: Backend - Query analytics database for metrics
+        # TODO: Backend - Calculate KPIs: total works, success rate, avg extraction time
+        # TODO: Backend - Aggregate equipment and component statistics
+        # TODO: Backend - Support time period filtering (daily, weekly, monthly, all-time)
         """
         if "total_works" in metrics and "total_works_card" in self.kpi_cards:
             card = self.kpi_cards["total_works_card"]
@@ -31,12 +36,14 @@ class AnalyticsView:
                 if isinstance(widget, ctk.CTkLabel) and widget.cget("font")[0] == "Segoe UI" and widget.cget("font")[1] == 20:
                     widget.configure(text=f"{metrics['success_rate']:.1f}%")
         
-        # TODO: Update other cards similarly
+        # TODO: Backend - Update other cards similarly
 
     def _change_period(self, period: str) -> None:
         """Change analytics time period (button-based, no input fields)."""
+        # TODO: Backend - Query analytics for selected time period
+        # TODO: Backend - Calculate metrics for the period (daily, weekly, monthly, all-time)
+        # TODO: Backend - Return updated KPI values
         self.current_period = period
-        # TODO: Reload analytics data for selected period
         # self.controller.load_analytics(period)
 
     def _create_kpi_card(self, parent: ctk.CTkFrame, title: str, value: str, key: str, row: int, col: int) -> None:

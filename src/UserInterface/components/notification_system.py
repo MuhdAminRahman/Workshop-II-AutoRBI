@@ -28,6 +28,9 @@ class NotificationSystem:
             notification_type: "success", "error", "warning", "info"
             duration: Display duration in milliseconds
             action_callback: Optional callback function
+            
+        TODO: Backend - Can send real-time notifications via callback
+        TODO: Backend - Log notification events for analytics
         """
         notification = {
             "id": len(self.notifications),
@@ -133,6 +136,13 @@ class NotificationSystem:
         """Remove a notification from display."""
         if frame.winfo_exists():
             frame.destroy()
+        
+        # Check if container has any remaining children; if not, destroy the container too
+        if (self.notification_container is not None and 
+            self.notification_container.winfo_exists() and 
+            len(self.notification_container.winfo_children()) == 0):
+            self.notification_container.destroy()
+            self.notification_container = None
 
     def get_notifications(self) -> List[Dict[str, Any]]:
         """Get all current notifications."""

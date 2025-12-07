@@ -45,7 +45,7 @@ class WorkHistoryView:
         """Filter items based on current filter selection."""
         if self.current_filter == "all":
             return items
-        # TODO: Implement date-based filtering when backend provides date data
+        # TODO: Backend - Implement date-based filtering when backend provides date data
         return items
 
     def _apply_filter(self, period: str) -> None:
@@ -60,17 +60,20 @@ class WorkHistoryView:
 
     def _view_details(self, item: Dict[str, Any]) -> None:
         """Open details view for a work history item."""
-        # TODO: delegate to controller/backend
+        # TODO: Backend - Delegate to controller/backend for details loading
         pass
 
     def _export_work(self, item: Dict[str, Any]) -> None:
         """Export work item to Excel/PDF."""
-        # TODO: delegate to controller/backend
+        # TODO: Backend - Generate Excel file with work item data
+        # TODO: Backend - Generate PDF report with work item details
+        # TODO: Backend - Return file path for download
+        # TODO: Backend - Delegate to controller/backend for export processing
         pass
 
     def _delete_work(self, item: Dict[str, Any]) -> None:
         """Delete/archive a work history item."""
-        # TODO: delegate to controller/backend
+        # TODO: Backend - Delegate to controller/backend for work item deletion
         pass
 
     def _add_history_row(self, index: int, item: Dict[str, Any]) -> None:
