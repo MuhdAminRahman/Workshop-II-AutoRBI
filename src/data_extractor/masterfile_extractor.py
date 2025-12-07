@@ -42,7 +42,7 @@ class MasterfileExtractor:
                 prompt = self._build_prompt(equipment_number, equipment)
                 
                 message = self.client.messages.create(
-                    model="claude-sonnet-4-20250514",
+                    model="claude-haiku-4-5-20251001", #claude-haiku-4-5-20251001 #claude-sonnet-4-20250514
                     max_tokens=4000,
                     messages=[{
                         "role": "user",
@@ -85,17 +85,28 @@ class MasterfileExtractor:
         """Determine if a request should be retried"""
         error_msg = str(error)
         if '529' in error_msg or 'overloaded' in error_msg.lower():
-            delay = self.base_delay * (2 ** attempt)
+            delay = 0 #self.base_delay #* (2 ** attempt)
             logger.warning(f"⚠️ API overloaded (attempt {attempt + 1}/{self.max_retries}). Retrying in {delay} seconds...")
             time.sleep(delay)
             return True
         return False
     
-    def process_equipment_images(self, equipment_map: Dict[str, Equipment]) -> Dict[str, Dict[str, any]]:
-        """Process images for all equipment"""
+    def process_equipment_images(self, equipment_map: Dict[str, Equipment], 
+                                 only_missing: bool = False) -> Dict[str, Dict[str, any]]:
+        """
+        Process images for equipment
+        
+        Args:
+            equipment_map: Dictionary of equipment
+            only_missing: If True, only process equipment that still has missing data
+        """
         extracted_data = {}
         
         for equipment_number, equipment in equipment_map.items():
+            # Skip if only_missing is True and this equipment is not in missing list
+            if only_missing and equipment_number not in self.data_updater.missing_equipment:
+                continue
+                
             extracted_data.update(self._process_single_equipment(equipment_number, equipment))
         
         return extracted_data
@@ -126,13 +137,38 @@ class MasterfileExtractor:
         """Update equipment with extracted data"""
         self.data_updater.update_equipment(equipment_map, extracted_data)
     
-    def process_and_update_equipment(self, equipment_map: Dict[str, Equipment]) -> Dict[str, Equipment]:
-        """Complete pipeline: extract data and update equipment"""
+    def process_and_update_equipment(self, equipment_map: Dict[str, Equipment], 
+                                    max_retries: int = 2) -> Dict[str, Equipment]:
+        """Complete pipeline: extract data and update equipment with retries"""
         logger.info("🚀 Starting equipment data extraction pipeline...")
         
-        extracted_data = self.process_equipment_images(equipment_map)
-        self.update_equipment_with_extracted_data(equipment_map, extracted_data)
+        retry_count = 0
         
-        logger.info(f"✅ Completed processing {len(extracted_data)} equipment items")
+        while retry_count < max_retries:
+            if retry_count == 0:
+                logger.info(f"\n📋 Initial extraction (attempt {retry_count + 1})...")
+                # First pass: process all equipment
+                extracted_data = self.process_equipment_images(equipment_map, only_missing=False)
+            else:
+                logger.info(f"\n🔄 Retry {retry_count} for {len(self.data_updater.missing_equipment)} equipment...")
+                # Subsequent passes: only process missing equipment
+                extracted_data = self.process_equipment_images(equipment_map, only_missing=True)
+            
+            # Update equipment with extracted data
+            self.update_equipment_with_extracted_data(equipment_map, extracted_data)
+            
+            # Check if we're done
+            if not self.data_updater.missing_equipment:
+                logger.info(f"✅ All equipment have complete data after {retry_count + 1} attempt(s)")
+                break
+            
+            retry_count += 1
+        
+        # Report final status
+        if self.data_updater.missing_equipment:
+            logger.warning(f"⚠️ {len(self.data_updater.missing_equipment)} equipment still missing data after {max_retries} retries:")
+            for eq_num in self.data_updater.missing_equipment:
+                logger.warning(f"  - {eq_num}")
+        
         return equipment_map
     

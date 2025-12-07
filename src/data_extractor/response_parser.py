@@ -77,6 +77,16 @@ class ResponseParser:
         # Log extraction results
         extracted_fields = [k for k,v in components_data[0].items() if v != 'NOT_FOUND'] if components_data else []
         logger.info(f"✅ Extracted data for {equipment_number}: {', '.join(extracted_fields)}")
+        not_extracted_fields = [k for k,v in components_data[0].items() if v == 'NOT_FOUND' or v == ""] if components_data else []
+        if equipment_number in self.rules.INSULATION_ONLY_EQUIPMENT:
+            # For insulation-only equipment, only log insulation field
+            not_extracted_fields = [f for f in not_extracted_fields if f == 'insulation']
+            if not_extracted_fields:
+                logger.info(f"⚠️ Missing data for {equipment_number}: {', '.join(not_extracted_fields)}")
+
+        else:
+            if not_extracted_fields:
+                logger.info(f"⚠️ Missing data for {equipment_number}: {', '.join(not_extracted_fields)}")
         
         return {'components_data': components_data}
     
