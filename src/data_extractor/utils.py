@@ -7,40 +7,121 @@ from PIL import Image
 
 def compress_image_for_api(image_path: str) -> str:
     """
-    Compress image to fit under Anthropic's 5MB limit
-    Returns base64 string of compressed image
+    Only compress PNG if it exceeds 5MB limit. Uses PNG-only compression methods.
+    Returns base64 string of image
     """
+    MAX_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
+    OPTIMAL_LONG_EDGE = 1568  # Anthropic's recommended max dimension
+    
     try:
+        # Check original file size first
+        original_size = os.path.getsize(image_path)
+        
+        # Base64 encoding increases size by ~33%, so check if encoded size will exceed limit
+        # Use 3.75MB threshold (3.75 * 1.33 ≈ 5MB)
+        SAFE_SIZE_BEFORE_BASE64 = int(MAX_SIZE_BYTES * 0.75)  # 3.75MB
+        
+        # If under safe threshold, return original without modification
+        if original_size <= SAFE_SIZE_BEFORE_BASE64:
+            with open(image_path, "rb") as f:
+                original_b64 = base64.b64encode(f.read()).decode("utf-8")
+            size_mb = original_size / (1024 * 1024)
+            encoded_size_mb = len(original_b64) * 3 / 4 / (1024 * 1024)  # Approximate decoded size
+            print(f"  ✅ Original size {size_mb:.2f}MB (encoded: ~{encoded_size_mb:.2f}MB) - no compression needed")
+            return original_b64
+        
+        # File is too large, need to compress
+        print(f"  ⚠️ Original size {original_size / (1024 * 1024):.2f}MB exceeds 5MB - compressing PNG...")
+        
         with Image.open(image_path) as img:
-            # Convert to RGB if necessary
-            if img.mode in ('RGBA', 'LA', 'P'):
-                img = img.convert('RGB')
+            original_mode = img.mode
             
-            # Try different compression levels
-            for quality in [85, 70, 60, 50]:
-                # Save to memory buffer
-                buffer = io.BytesIO()
-                img.save(buffer, format='PNG', quality=quality, optimize=True)
-                
-                if buffer.tell() <= 5 * 1024 * 1024:  # 5MB limit
-                    buffer.seek(0)
-                    compressed_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-                    return compressed_b64
+            # Step 1: Try optimize + compress_level=9 on original size
+            buffer = io.BytesIO()
+            img.save(buffer, format='PNG', optimize=True, compress_level=9)
+            buffer.seek(0)
             
-            # If still too large, resize
+            # Check base64 size (the actual size that will be sent)
+            compressed_data = buffer.getvalue()
+            base64_size = len(base64.b64encode(compressed_data))
+            
+            if base64_size <= MAX_SIZE_BYTES:
+                compressed_b64 = base64.b64encode(compressed_data).decode('utf-8')
+                size_mb = base64_size / (1024 * 1024)
+                print(f"  ✅ Compressed to {size_mb:.2f}MB base64 (PNG optimize + compress_level=9)")
+                return compressed_b64
+            
+            # Step 2: Try resizing to optimal dimension
             width, height = img.size
-            new_size = (int(width * 0.6), int(height * 0.6))
-            img_resized = img.resize(new_size, Image.Resampling.LANCZOS)
+            max_dimension = max(width, height)
+            
+            if max_dimension > OPTIMAL_LONG_EDGE:
+                scale_factor = OPTIMAL_LONG_EDGE / max_dimension
+                new_size = (int(width * scale_factor), int(height * scale_factor))
+                img_resized = img.resize(new_size, Image.Resampling.LANCZOS)
+                print(f"  Resized from {width}x{height} to {new_size[0]}x{new_size[1]}")
+                
+                buffer = io.BytesIO()
+                img_resized.save(buffer, format='PNG', optimize=True, compress_level=9)
+                buffer.seek(0)
+                
+                # Check base64 size
+                compressed_data = buffer.getvalue()
+                base64_size = len(base64.b64encode(compressed_data))
+                
+                if base64_size <= MAX_SIZE_BYTES:
+                    compressed_b64 = base64.b64encode(compressed_data).decode('utf-8')
+                    size_mb = base64_size / (1024 * 1024)
+                    print(f"  ✅ Compressed to {size_mb:.2f}MB base64 (PNG resized + optimized)")
+                    return compressed_b64
+                
+                img = img_resized  # Use resized for next steps
+            
+            # Step 3: Try color quantization (24-bit → 8-bit, 256 colors)
+            # This is still PNG, just with fewer colors
+            print(f"  Applying color quantization (256 colors)...")
+            if img.mode != 'P':  # Only quantize if not already palettized
+                img_quantized = img.quantize(colors=256)
+            else:
+                img_quantized = img
             
             buffer = io.BytesIO()
-            img_resized.save(buffer, format='JPEG', quality=60, optimize=True)
+            img_quantized.save(buffer, format='PNG', optimize=True, compress_level=9)
             buffer.seek(0)
-            compressed_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
             
+            # Check base64 size
+            compressed_data = buffer.getvalue()
+            base64_size = len(base64.b64encode(compressed_data))
+            
+            if base64_size <= MAX_SIZE_BYTES:
+                compressed_b64 = base64.b64encode(compressed_data).decode('utf-8')
+                size_mb = base64_size / (1024 * 1024)
+                print(f"  ✅ Compressed to {size_mb:.2f}MB base64 (PNG 256-color)")
+                return compressed_b64
+            
+            # Step 4: Emergency - more aggressive resize
+            print(f"  ⚠️ Applying emergency resize (50%)...")
+            width, height = img.size
+            new_size = (int(width * 0.5), int(height * 0.5))
+            img_emergency = img.resize(new_size, Image.Resampling.LANCZOS)
+            
+            if img_emergency.mode != 'P':
+                img_emergency = img_emergency.quantize(colors=256)
+            
+            buffer = io.BytesIO()
+            img_emergency.save(buffer, format='PNG', optimize=True, compress_level=9)
+            buffer.seek(0)
+            
+            compressed_data = buffer.getvalue()
+            compressed_b64 = base64.b64encode(compressed_data).decode('utf-8')
+            
+            size_mb = len(compressed_b64) / (1024 * 1024)
+            print(f"  Final size: {size_mb:.2f}MB base64 (PNG 50% resize + 256 colors)")
             return compressed_b64
             
     except Exception as e:
-        # Fallback: try original image
+        print(f"  ❌ Error processing image: {e}")
+        # Last resort: try original image
         with open(image_path, "rb") as f:
             return base64.b64encode(f.read()).decode("utf-8")
 
