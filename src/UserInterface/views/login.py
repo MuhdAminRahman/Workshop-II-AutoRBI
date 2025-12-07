@@ -146,11 +146,27 @@ class LoginView:
             # TODO: Backend - Authenticate user credentials against database
             # TODO: Backend - Validate username and password
             # TODO: Backend - Load user session and profile data
-            # TODO: Backend - Return success/error status
-            # if backend.authenticate(username, password):
-            self.controller.show_main_menu()
+            # TODO: Backend - Get employee group/department for work assignment filtering
+            # TODO: Backend - Return success/error status and employee group
+            
+            # Example backend integration:
+            # auth_result = self.controller.authenticate_user(username, password)
+            # if auth_result.get("success"):
+            #     self.controller.current_user["group"] = auth_result.get("group")
+            #     self.controller.available_works = auth_result.get("available_works", [])
+            #     self.controller.show_main_menu()
             # else:
             #     messagebox.showerror("Login Failed", "Invalid username or password.")
+            
+            # For now, set default group (remove when backend is integrated)
+            self.controller.current_user["group"] = "Engineering"
+            self.controller.available_works = [
+                {"id": "W001", "name": "Work 1 - GA Drawing Analysis"},
+                {"id": "W002", "name": "Work 2 - Equipment Inspection"},
+                {"id": "W003", "name": "Work 3 - Component Verification"},
+            ]
+            self.controller.current_work = self.controller.available_works[0] if self.controller.available_works else None
+            self.controller.show_main_menu()
 
         # Primary button with glass effect
         login_btn = ctk.CTkButton(

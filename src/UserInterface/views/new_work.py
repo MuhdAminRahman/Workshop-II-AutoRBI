@@ -97,7 +97,73 @@ class NewWorkView:
                 textbox.delete("1.0", "end")
                 textbox.insert("1.0", content)
 
-    def _select_files(self, mode: str) -> None:
+    def get_work_excel_path(self, work_id: str = None) -> Optional[str]:
+        """Get path to Excel file for the current/specified work.
+        
+        Args:
+            work_id: Work ID to check. If None, use current_work from controller.
+            
+        Returns:
+            Path to Excel file if it exists, None otherwise.
+        """
+        if work_id is None:
+            work = self.controller.current_work
+            work_id = work.get("id") if work else None
+        
+        if not work_id:
+            return None
+        
+        try:
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+            # Check in output_files/{work_id}/excel/
+            excel_dir = os.path.join(project_root, "src", "output_files", work_id, "excel")
+            if os.path.isdir(excel_dir):
+                for fname in os.listdir(excel_dir):
+                    if fname.lower().endswith(('.xlsx', '.xls')):
+                        return os.path.join(excel_dir, fname)
+            return None
+        except Exception:
+            return None
+
+    def work_has_excel(self, work_id: str = None) -> bool:
+        """Check if current/specified work has an Excel file."""
+        return self.get_work_excel_path(work_id) is not None
+
+    def upload_excel_for_work(self, work_id: str = None) -> None:
+        """Upload Excel file for current/specified work."""
+        if work_id is None:
+            work = self.controller.current_work
+            work_id = work.get("id") if work else None
+        
+        if not work_id:
+            from tkinter import messagebox
+            messagebox.showwarning("No Work Selected", "Please select a work first.")
+            return
+        
+        filetypes = [("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
+        path = filedialog.askopenfilename(
+            title=f"Select Excel file for {work_id}",
+            filetypes=filetypes
+        )
+        if not path:
+            return
+        
+        try:
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+            dest_dir = os.path.join(project_root, "src", "output_files", work_id, "excel")
+            os.makedirs(dest_dir, exist_ok=True)
+            dest_file = os.path.join(dest_dir, os.path.basename(path))
+            shutil.copy2(path, dest_file)
+            
+            from tkinter import messagebox
+            messagebox.showinfo("Success", f"Excel file uploaded successfully for {work_id}.")
+            # Refresh the display to show the uploaded file
+            self._refresh_file_list()
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Upload Failed", f"Failed to upload Excel file:\n{e}")
+
+    def _select_files(self, mode: str = "single") -> None:
         """Open file dialog to select one or multiple input files."""
         # Only allow image uploads (JPG, JPEG). PDF support removed per request.
         filetypes = [
@@ -117,15 +183,34 @@ class NewWorkView:
         self._refresh_file_list()
 
     def _refresh_file_list(self) -> None:
-        # Update compact file list (if created)
+        # Update file list display with Excel and GA files
         if hasattr(self, "file_listbox"):
             self.file_listbox.configure(state="normal")
             self.file_listbox.delete("1.0", "end")
-            if not self.selected_files:
-                self.file_listbox.insert("1.0", "No files selected.")
+            
+            file_count = 0
+            
+            # Display Excel file (if exists)
+            work_id = self.controller.current_work.get("id") if self.controller.current_work else None
+            if work_id and self.work_has_excel(work_id):
+                excel_path = self.get_work_excel_path(work_id)
+                excel_filename = os.path.basename(excel_path) if excel_path else "Unknown"
+                self.file_listbox.insert("end", f"[MASTERFILE] 📋 {excel_filename}\n")
+                file_count += 1
             else:
+                if work_id:
+                    self.file_listbox.insert("end", "[MASTERFILE] ⚠️  No Excel uploaded\n")
+            
+            # Display GA drawings (if any selected)
+            if self.selected_files:
+                self.file_listbox.insert("end", "\n[GA DRAWINGS]\n")
                 for idx, path in enumerate(self.selected_files, start=1):
-                    self.file_listbox.insert("end", f"{idx}. {path}\n")
+                    filename = os.path.basename(path)
+                    self.file_listbox.insert("end", f"  {idx}. 📄 {filename}\n")
+                    file_count += 1
+            else:
+                self.file_listbox.insert("end", "\n[GA DRAWINGS] No files selected\n")
+            
             self.file_listbox.configure(state="disabled")
 
     def _rebuild_extracted_data_page_2(self) -> None:
@@ -452,7 +537,7 @@ class NewWorkView:
 
         main_frame = scroll_container
 
-        main_frame.grid_rowconfigure(5, weight=1)
+        main_frame.grid_rowconfigure(4, weight=1)
         main_frame.grid_columnconfigure(0, weight=1)
 
         page_title = ctk.CTkLabel(
@@ -464,154 +549,224 @@ class NewWorkView:
 
         subtitle_label = ctk.CTkLabel(
             main_frame,
-            text="Upload GA drawings and extract data.",
+            text="Select work, upload Excel masterfile, and GA drawings for extraction.",
             font=("Segoe UI", 11),
             text_color=("gray25", "gray80"),
         )
-        subtitle_label.grid(row=1, column=0, sticky="w", padx=30, pady=(0, 18))
+        subtitle_label.grid(row=1, column=0, sticky="w", padx=24, pady=(0, 18))
 
-        # --- Top section: file selection & progress ---------------------------------
-        top_section = ctk.CTkFrame(main_frame, fg_color="transparent")
-        top_section.grid(row=2, column=0, sticky="ew", padx=24, pady=(0, 12))
-        top_section.grid_columnconfigure(0, weight=1)
-        top_section.grid_columnconfigure(1, weight=0)
+        # --- Section 1: Work Selection with ComboBox -------------------------------------------
+        work_section = ctk.CTkFrame(main_frame, fg_color=("gray90", "gray15"), corner_radius=12)
+        work_section.grid(row=2, column=0, sticky="ew", padx=24, pady=(0, 16))
+        work_section.grid_columnconfigure(1, weight=1)
 
-        # File mode (single / multiple)
-        mode_label = ctk.CTkLabel(
-            top_section,
-            text="Select input mode:",
+        work_label = ctk.CTkLabel(
+            work_section,
+            text="Work Assignment:",
             font=("Segoe UI", 11, "bold"),
+            text_color=("gray20", "gray90"),
         )
-        mode_label.grid(row=0, column=0, sticky="w")
+        work_label.grid(row=0, column=0, sticky="w", padx=16, pady=(12, 6))
+
+        # Get list of work names for ComboBox
+        work_names = [w.get("name", w.get("id", "Unknown")) for w in self.controller.available_works]
+        current_work_index = 0
+        if self.controller.current_work:
+            current_id = self.controller.current_work.get("id")
+            for idx, work in enumerate(self.controller.available_works):
+                if work.get("id") == current_id:
+                    current_work_index = idx
+                    break
+
+        self.work_combobox = ctk.CTkComboBox(
+            work_section,
+            values=work_names,
+            state="readonly",
+            font=("Segoe UI", 10),
+            height=32,
+            command=lambda choice: self._on_work_selected(choice),
+        )
+        self.work_combobox.grid(row=0, column=1, sticky="ew", padx=(0, 16), pady=(12, 6))
+        self.work_combobox.set(work_names[current_work_index] if work_names else "No Works Available")
+
+        work_section.grid_rowconfigure(1, minsize=6)
+
+        # --- Section 2: File Uploads (Excel + GA Drawings) -------------------------------------------
+        file_upload_section = ctk.CTkFrame(main_frame, fg_color=("gray90", "gray15"), corner_radius=12)
+        file_upload_section.grid(row=3, column=0, sticky="ew", padx=24, pady=(0, 16))
+        file_upload_section.grid_columnconfigure(0, weight=1)
+
+        # File upload label
+        file_upload_label = ctk.CTkLabel(
+            file_upload_section,
+            text="Files:",
+            font=("Segoe UI", 11, "bold"),
+            text_color=("gray20", "gray90"),
+        )
+        file_upload_label.grid(row=0, column=0, sticky="w", padx=16, pady=(12, 12))
+
+        # Selected files display (Excel + GA drawings)
+        files_display_section = ctk.CTkFrame(file_upload_section, fg_color="transparent")
+        files_display_section.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 12))
+        files_display_section.grid_columnconfigure(1, weight=1)
+
+        self.file_listbox = ctk.CTkTextbox(
+            files_display_section,
+            height=80,
+            font=("Segoe UI", 9),
+            fg_color=("white", "gray20"),
+        )
+        self.file_listbox.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 8))
+        self.file_listbox.configure(state="disabled")
+
+        # Button row: Upload Excel, Browse GA, GA Mode, Clear
+        button_row = ctk.CTkFrame(files_display_section, fg_color="transparent")
+        button_row.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 0))
+
+        # Check if Excel exists for current work
+        work_id = self.controller.current_work.get("id") if self.controller.current_work else None
+        excel_exists = self.work_has_excel(work_id) if work_id else False
+        
+        # Only show upload button if Excel doesn't exist
+        if not excel_exists:
+            excel_upload_btn = ctk.CTkButton(
+                button_row,
+                text="📋 Upload Excel",
+                command=lambda: self.upload_excel_for_work(self.controller.current_work.get("id") if self.controller.current_work else None),
+                height=32,
+                width=120,
+                font=("Segoe UI", 10),
+            )
+            excel_upload_btn.pack(side="left", padx=(0, 8))
+
+        # Browse GA Files button
+        ga_browse_btn = ctk.CTkButton(
+            button_row,
+            text="📁 Browse GA Files",
+            command=lambda: self._select_files(self.file_mode.get().lower()),
+            height=32,
+            width=130,
+            font=("Segoe UI", 10),
+        )
+        ga_browse_btn.pack(side="left", padx=(0, 8))
+
+        # File mode selector
+        mode_label = ctk.CTkLabel(
+            button_row,
+            text="GA Mode:",
+            font=("Segoe UI", 9),
+            text_color=("gray50", "gray70"),
+        )
+        mode_label.pack(side="left", padx=(0, 6))
 
         self.file_mode = ctk.StringVar(value="single")
         mode_switch = ctk.CTkSegmentedButton(
-            top_section,
-            values=["single", "multiple"],
+            button_row,
+            values=["Single", "Multiple"],
             variable=self.file_mode,
+            font=("Segoe UI", 9),
+            height=28,
         )
-        mode_switch.grid(row=0, column=1, sticky="e")
-
-        # File selection buttons
-        file_buttons = ctk.CTkFrame(top_section, fg_color="transparent")
-        file_buttons.grid(row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
-
-        # Excel upload
-        excel_btn = ctk.CTkButton(
-            file_buttons,
-            text="Upload Excel Sheet",
-            command=self._upload_excel_sheet,
-            height=32,
-        )
-        excel_btn.pack(side="left", padx=(0, 8))
-
-        select_btn = ctk.CTkButton(
-            file_buttons,
-            text="Browse files (JPG, JPEG)",
-            command=lambda: self._select_files(self.file_mode.get()),
-            height=32,
-        )
-        select_btn.pack(side="left")
+        mode_switch.pack(side="left", padx=(0, 8))
 
         clear_btn = ctk.CTkButton(
-            file_buttons,
-            text="Clear",
+            button_row,
+            text="Clear All",
             command=self._clear_files,
             height=32,
+            width=80,
+            font=("Segoe UI", 10),
             fg_color="transparent",
             text_color=("gray20", "gray90"),
             hover_color=("gray85", "gray30"),
-            border_width=0,
+            border_width=1,
+            border_color=("gray70", "gray50"),
         )
-        clear_btn.pack(side="left", padx=(8, 0))
+        clear_btn.pack(side="left")
+
+        # --- Section 3: Extraction Progress & Log -------------------------------------------
+        extract_section = ctk.CTkFrame(main_frame, fg_color=("gray90", "gray15"), corner_radius=12)
+        extract_section.grid(row=4, column=0, sticky="nsew", padx=24, pady=(0, 16))
+        extract_section.grid_rowconfigure(2, weight=1)
+        extract_section.grid_columnconfigure(0, weight=1)
 
         # Progress bar
-        progress_frame = ctk.CTkFrame(top_section, fg_color="transparent")
-        progress_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
-        progress_frame.grid_columnconfigure(0, weight=1)
+        progress_label = ctk.CTkLabel(
+            extract_section,
+            text="Extraction Progress:",
+            font=("Segoe UI", 11, "bold"),
+            text_color=("gray20", "gray90"),
+        )
+        progress_label.grid(row=0, column=0, sticky="w", padx=16, pady=(12, 4))
 
-        self.progress_bar = ctk.CTkProgressBar(progress_frame, height=10)
-        self.progress_bar.grid(row=0, column=0, sticky="ew")
+        self.progress_bar = ctk.CTkProgressBar(extract_section, height=12)
+        self.progress_bar.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 4))
         self.progress_bar.set(0.0)
 
         self.progress_label = ctk.CTkLabel(
-            progress_frame,
+            extract_section,
             text="Ready to extract.",
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 9),
             text_color=("gray70", "gray80"),
         )
-        self.progress_label.grid(row=1, column=0, sticky="w", pady=(4, 0))
+        self.progress_label.grid(row=1, column=0, sticky="e", padx=16, pady=(0, 4))
 
-        # Start extraction button (top-right)
-        extract_btn = ctk.CTkButton(
-            top_section,
-            text="Start extraction",
-            command=self._start_extraction,
-            height=32,
-            font=("Segoe UI", 11, "bold"),
-        )
-        extract_btn.grid(row=0, column=2, rowspan=3, sticky="e", padx=(16, 0))
-
-        # --- Middle section: selected file list -------------------------------------
-        file_list_section = ctk.CTkFrame(main_frame, fg_color="transparent")
-        file_list_section.grid(row=3, column=0, sticky="ew", padx=24, pady=(0, 4))
-        file_list_section.grid_columnconfigure(0, weight=1)
-
-        file_list_label = ctk.CTkLabel(
-            file_list_section,
-            text="Selected files:",
+        # Extraction log
+        log_title = ctk.CTkLabel(
+            extract_section,
+            text="Log:",
             font=("Segoe UI", 10, "bold"),
+            text_color=("gray20", "gray90"),
         )
-        file_list_label.grid(row=0, column=0, sticky="w")
-
-        self.file_listbox = ctk.CTkTextbox(
-            file_list_section,
-            height=60,
-            font=("Segoe UI", 9),
-        )
-        self.file_listbox.grid(row=1, column=0, sticky="ew", pady=(2, 0))
-        self.file_listbox.configure(state="disabled")
-
-        # --- Extraction log section ------------------------------------------------
-        log_section = ctk.CTkFrame(main_frame, fg_color="transparent")
-        log_section.grid(row=4, column=0, sticky="nsew", padx=24, pady=(12, 12))
-        log_section.grid_rowconfigure(1, weight=1)
-        log_section.grid_columnconfigure(0, weight=1)
-
-        log_label = ctk.CTkLabel(
-            log_section,
-            text="Extraction Log:",
-            font=("Segoe UI", 11, "bold"),
-        )
-        log_label.grid(row=0, column=0, sticky="w", pady=(0, 4))
+        log_title.grid(row=2, column=0, sticky="w", padx=16, pady=(8, 4))
 
         self.extraction_log_textbox = ctk.CTkTextbox(
-            log_section,
-            height=150,
-            font=("Segoe UI", 9),
-            fg_color=("gray90", "gray15"),
+            extract_section,
+            height=120,
+            font=("Segoe UI", 8),
+            fg_color=("white", "gray20"),
             text_color=("gray20", "gray85"),
         )
-        self.extraction_log_textbox.grid(row=1, column=0, sticky="nsew")
+        self.extraction_log_textbox.grid(row=3, column=0, sticky="nsew", padx=16, pady=(0, 12))
         self.extraction_log_textbox.configure(state="disabled")
 
-        # --- Bottom section: Next button -------------------------------------------
-        bottom_section = ctk.CTkFrame(main_frame, fg_color="transparent")
-        bottom_section.grid(row=5, column=0, sticky="ew", padx=24, pady=(12, 24))
-        bottom_section.grid_columnconfigure(0, weight=1)
+        # Start extraction button
+        extract_btn = ctk.CTkButton(
+            extract_section,
+            text="▶ Start Extraction",
+            command=self._start_extraction,
+            height=36,
+            font=("Segoe UI", 11, "bold"),
+        )
+        extract_btn.grid(row=4, column=0, sticky="ew", padx=16, pady=(0, 12))
+
+        # --- Section 4: Bottom Action Buttons -------------------------------------------
+        action_section = ctk.CTkFrame(main_frame, fg_color="transparent")
+        action_section.grid(row=5, column=0, sticky="ew", padx=24, pady=(12, 24))
+        action_section.grid_columnconfigure(0, weight=1)
 
         self.next_button = ctk.CTkButton(
-            bottom_section,
-            text="Next: Review Extracted Data",
+            action_section,
+            text="➜ Next: Review Extracted Data",
             command=self.show_page_2,
             height=36,
             font=("Segoe UI", 11, "bold"),
-            state="disabled",  # Disabled until extraction completes
+            fg_color=("gray20", "gray30"),
+            state="disabled",
         )
         self.next_button.pack(side="right")
 
         # Initial state for file list
         self._refresh_file_list()
+
+    def _on_work_selected(self, choice: str) -> None:
+        """Handle work selection from ComboBox."""
+        for work in self.controller.available_works:
+            if work.get("name", work.get("id")) == choice:
+                self.controller.current_work = work
+                # Refresh entire page 1 to update button visibility and file list
+                self.show_page_1()
+                break
 
     def show_page_2(self) -> None:
         """Page 2: Review and edit extracted data, then save."""
@@ -739,33 +894,3 @@ class NewWorkView:
 
         # Rebuild per-file editable sections with extracted data
         self._rebuild_extracted_data_page_2()
-
-    def _upload_excel_sheet(self) -> None:
-        """Open file dialog to choose an Excel file and copy into output folder."""
-        # TODO: Backend - Validate Excel file format (check sheets, columns)
-        # TODO: Backend - Verify Excel contains valid masterfile structure
-        # TODO: Backend - Load and cache equipment data for later use
-        filetypes = [
-            ("Excel files", "*.xlsx *.xls"),
-            ("All files", "*.*"),
-        ]
-        path = filedialog.askopenfilename(title="Select Master Excel file", filetypes=filetypes)
-        if not path:
-            return
-
-        # Copy selected file into output_files/default/excel (create if needed)
-        try:
-            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-            dest_dir = os.path.join(project_root, "src", "output_files", "default", "excel")
-            os.makedirs(dest_dir, exist_ok=True)
-            dest_path = os.path.join(dest_dir, os.path.basename(path))
-            shutil.copy2(path, dest_path)
-            self.selected_excel = dest_path
-            if hasattr(self.controller, 'show_notification'):
-                self.controller.show_notification("Master Excel uploaded successfully.", "success", 4000)
-        except Exception as e:
-            try:
-                from tkinter import messagebox
-                messagebox.showerror("Upload Failed", f"Failed to upload Excel file:\n{e}")
-            except Exception:
-                pass
