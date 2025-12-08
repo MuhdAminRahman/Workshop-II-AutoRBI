@@ -240,39 +240,6 @@ class MainMenuView:
         )
         subtitle_label.grid(row=0, column=0, sticky="w", padx=24, pady=(44, 24))
 
-        # Check for presence of master Excel file(s). If missing, show notice with actions.
-        if not self._excel_exists():
-            notice_frame = ctk.CTkFrame(main_frame, fg_color=("#FFF5EA", "#3A2A1A"), corner_radius=8)
-            notice_frame.grid(row=0, column=0, sticky="e", padx=24, pady=(8, 0))
-            notice_frame.grid_columnconfigure(0, weight=1)
-
-            notice_label = ctk.CTkLabel(
-                notice_frame,
-                text="No master Excel found. Upload an Excel sheet to proceed.",
-                font=("Segoe UI", 11),
-                text_color=("#7A4A2A", "#FFD9B8"),
-            )
-            notice_label.grid(row=0, column=0, sticky="w", padx=12, pady=(8, 8))
-
-            btn_frame = ctk.CTkFrame(notice_frame, fg_color="transparent")
-            btn_frame.grid(row=1, column=0, sticky="e", padx=12, pady=(0, 8))
-
-            upload_btn = ctk.CTkButton(
-                btn_frame,
-                text="Upload Excel",
-                command=self._handle_upload_excel,
-                height=28,
-            )
-            upload_btn.pack(side="right", padx=(8, 0))
-
-            newwork_btn = ctk.CTkButton(
-                btn_frame,
-                text="New Work",
-                command=self.controller.show_new_work,
-                height=28,
-            )
-            newwork_btn.pack(side="right")
-
         # Menu buttons container (grid of cards)
         buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         buttons_frame.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 24))
@@ -402,41 +369,6 @@ class MainMenuView:
                     anchor="w",
                 )
                 item_btn.pack(fill="x", padx=8, pady=2)
-
-    def _excel_exists(self) -> bool:
-        """Return True if any .xlsx/.xls file exists under output_files/*/excel."""
-        try:
-            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-            base = os.path.join(project_root, "src", "output_files")
-            if not os.path.isdir(base):
-                return False
-            for userdir in os.listdir(base):
-                excel_dir = os.path.join(base, userdir, "excel")
-                if os.path.isdir(excel_dir):
-                    for fname in os.listdir(excel_dir):
-                        if fname.lower().endswith(('.xlsx', '.xls')):
-                            return True
-            return False
-        except Exception:
-            return False
-
-    def _handle_upload_excel(self) -> None:
-        """Prompt user to select an Excel file and copy it to default excel folder."""
-        filetypes = [("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
-        path = filedialog.askopenfilename(title="Select Master Excel file", filetypes=filetypes)
-        if not path:
-            return
-        try:
-            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-            dest_dir = os.path.join(project_root, "src", "output_files", "default", "excel")
-            os.makedirs(dest_dir, exist_ok=True)
-            dest_path = os.path.join(dest_dir, os.path.basename(path))
-            shutil.copy2(path, dest_path)
-            messagebox.showinfo("Upload Complete", "Master Excel uploaded successfully.")
-            # Refresh main menu to remove notice
-            self.show()
-        except Exception as e:
-            messagebox.showerror("Upload Failed", f"Failed to upload Excel file:\n{e}")
 
     def _hide_profile_dropdown(self) -> None:
         """Hide profile dropdown menu."""

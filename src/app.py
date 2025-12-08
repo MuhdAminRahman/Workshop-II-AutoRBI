@@ -60,7 +60,12 @@ class AutoRBIApp(ctk.CTk):
             "username": "John Doe",
             "role": "Engineer",
             "email": "john.doe@ipetro.com",
+            "group": None,  # Employee group/department set after login
         }
+        
+        # Current work context in New Work view
+        self.current_work = None  # Currently selected work assignment
+        self.available_works = []  # Works assigned to employee's group
 
         # Show login screen initially
         self.show_login()
