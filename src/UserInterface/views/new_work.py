@@ -44,23 +44,56 @@ class NewWorkView:
         # PDF converter instance
         self.pdf_converter: Optional[PDFToImageConverter] = None
         self.converted_images_dir: Optional[str] = None
+        self._last_log_message: str = ""
+        # Track which page widgets are available
+        self.page_1_widgets_available: bool = False
+        self.page_2_widgets_available: bool = False
 
 
     # Public helpers the backend can call later
     def set_progress(self, value: float, text: Optional[str] = None) -> None:
         """Update the extraction progress bar (0.0–1.0)."""
-        if self.progress_bar is not None:
-            self.progress_bar.set(value)
-        if text is not None and self.progress_label is not None:
-            self.progress_label.configure(text=text)
+        try:
+            if self.progress_bar is not None and self.progress_bar.winfo_exists():
+                self.progress_bar.set(value)
+            # If progress bar doesn't exist, we might be on page 2
+            # Just print for debugging
+            elif self.current_page == 2:
+                print(f"Progress (page 2): {value} - {text}")
+        except Exception as e:
+            print(f"Error setting progress bar: {e}")
+            
+        try:
+            if text is not None and self.progress_label is not None and self.progress_label.winfo_exists():
+                self.progress_label.configure(text=text)
+            # If progress label doesn't exist, we might be on page 2
+            # Just print for debugging
+            elif self.current_page == 2 and text:
+                print(f"Progress text (page 2): {text}")
+        except Exception as e:
+            print(f"Error setting progress label: {e}")
 
     def append_extraction_log(self, message: str) -> None:
         """Append a message to the extraction log textbox."""
-        if self.extraction_log_textbox is not None:
-            self.extraction_log_textbox.configure(state="normal")
-            self.extraction_log_textbox.insert("end", message + "\n")
-            self.extraction_log_textbox.see("end")  # Auto-scroll to bottom
-            self.extraction_log_textbox.configure(state="disabled")
+        try:
+            # Check if we're on page 1 and the textbox exists
+            if (self.current_page == 1 and 
+                self.page_1_widgets_available and 
+                self.extraction_log_textbox is not None and 
+                hasattr(self.extraction_log_textbox, 'winfo_exists') and 
+                self.extraction_log_textbox.winfo_exists()):
+                
+                self.extraction_log_textbox.configure(state="normal")
+                self.extraction_log_textbox.insert("end", message + "\n")
+                self.extraction_log_textbox.see("end")  # Auto-scroll to bottom
+                self.extraction_log_textbox.configure(state="disabled")
+            else:
+                # Store message for later or print to console
+                print(f"LOG (page {self.current_page}): {message}")
+        except Exception as e:
+            # If something goes wrong, just print to console
+            print(f"LOG ERROR: {message}")
+            print(f"Exception: {e}")
 
     def log_callback(self, message: str) -> None:
         """Callback for logging messages from the extractor."""
@@ -364,17 +397,17 @@ class NewWorkView:
                                 'equipment_no': equipment.equipment_number,
                                 'pmt_no': equipment.pmt_number,
                                 'description': equipment.equipment_description,
-                                'parts': equipment.components[row_counter].component_name,
-                                'phase': equipment.components[row_counter].phase,
-                                'fluid': equipment.components[row_counter].get_existing_data_value('fluid') or '',
-                                'type': equipment.components[row_counter].get_existing_data_value('material_type') or '',
-                                'spec': equipment.components[row_counter].get_existing_data_value('spec') or '',
-                                'grade': equipment.components[row_counter].get_existing_data_value('grade') or '',
-                                'insulation': equipment.components[row_counter].get_existing_data_value('insulation') or '',
-                                'design_temp': equipment.components[row_counter].get_existing_data_value('design_temp') or '',
-                                'design_pressure': equipment.components[row_counter].get_existing_data_value('design_pressure') or '',
-                                'operating_temp': equipment.components[row_counter].get_existing_data_value('operating_temp') or '',
-                                'operating_pressure': equipment.components[row_counter].get_existing_data_value('operating_pressure') or '',
+                                'parts': component.component_name,
+                                'phase': component.phase,
+                                'fluid': component.get_existing_data_value('fluid') or '',
+                                'type': component.get_existing_data_value('material_type') or '',
+                                'spec': component.get_existing_data_value('spec') or '',
+                                'grade': component.get_existing_data_value('grade') or '',
+                                'insulation': component.get_existing_data_value('insulation') or '',
+                                'design_temp': component.get_existing_data_value('design_temp') or '',
+                                'design_pressure': component.get_existing_data_value('design_pressure') or '',
+                                'operating_temp': component.get_existing_data_value('operating_temp') or '',
+                                'operating_pressure': component.get_existing_data_value('operating_pressure') or '',
                             })
                             row_counter += 1
                 else:
@@ -557,39 +590,264 @@ class NewWorkView:
         # TODO: Backend - Save to database
         # TODO: Backend - Return status: success/error for notification
         # Collect edited text per file; backend can parse into structured fields.
-        edited_data: Dict[str, List[str]] = {}
-        for path, textboxes in self.file_to_textboxes.items():
-            lines: List[str] = []
-            for tb in textboxes:
-                content = tb.get("1.0", "end").strip()
-                if content:
-                    lines.extend(content.splitlines())
-            edited_data[path] = lines
-
-        # Show loading
-        if hasattr(self.controller, 'show_loading'):
-            self.controller.show_loading("Saving to Excel and database...", show_progress=True)
-
         # TODO: Backend - Delegate to controller/backend for file validation and processing
         # self.controller.save_edited_data_to_excel(edited_data)
+        """Save edited data back to Excel using ExcelManager's save_to_excel_with_dict."""
+        if not self.excel_manager:
+            messagebox.showerror("No Data", "No Excel manager available. Please extract data first.")
+            return
         
-        # Simulate save (remove when backend is integrated)
-        def save_thread():
-            time.sleep(1)  # Simulate save time
-            self.parent.after(0, lambda: self.controller.hide_loading() if hasattr(self.controller, 'hide_loading') else None)
-            self.parent.after(0, lambda: self.controller.show_notification(
-                "Data saved successfully to Excel and database!",
-                "success",
-                5000
-            ) if hasattr(self.controller, 'show_notification') else None)
-            if self.progress_label is not None:
-                self.parent.after(0, lambda: self.progress_label.configure(
-                    text="✅ Data saved successfully to Excel and database."
+        if not self.equipment_map:
+            messagebox.showerror("No Data", "No equipment data available. Please extract data first.")
+            return
+        
+        # Show loading if controller supports it
+        if hasattr(self.controller, 'show_loading'):
+            try:
+                self.controller.show_loading("Checking for changes...", show_progress=True)
+            except:
+                print("Could not show loading")
+        
+        # Update equipment_map with data from UI entries
+        updated_equipment_map = self._update_equipment_map_from_ui()
+        
+        if not updated_equipment_map:
+            messagebox.showinfo("No Changes", "No changes were made to the equipment data.")
+            if hasattr(self.controller, 'hide_loading'):
+                try:
+                    self.controller.hide_loading()
+                except:
+                    print("Could not hide loading")
+            return
+        
+        # Show what we found
+        print(f"📝 Found changes in {len(updated_equipment_map)} equipment items")
+        
+        # Update loading message if controller supports it
+        if hasattr(self.controller, 'update_loading_progress'):
+            try:
+                self.controller.update_loading_progress(0.5, f"Saving {len(updated_equipment_map)} equipment items...")
+            except:
+                print("Could not update loading progress")
+        
+        # Save in background thread
+        save_thread = threading.Thread(target=self._run_save_with_dict, args=(updated_equipment_map,), daemon=True)
+        save_thread.start()
+
+    def _run_save_with_dict(self, updated_equipment_map: Dict[str, Equipment]) -> None:
+        """Run the save process using save_to_excel_with_dict in a background thread."""
+        try:
+            # We're on page 2, so we can't update progress bar/label from page 1
+            # Just update status in console
+            print("🔄 Preparing data for Excel...")
+            
+            # Get user ID if available
+            user_id = self.controller.current_work.get("id")
+            
+            # Call ExcelManager's save_to_excel_with_dict function with Equipment objects
+            if user_id is not None:
+                success = self.excel_manager.save_to_excel_with_dict(updated_equipment_map, user_id)
+            else:
+                success = self.excel_manager.save_to_excel_with_dict(updated_equipment_map)
+            
+            if success:
+                print("✅ Save complete!")
+                
+                # Merge updated equipment back into the main equipment_map
+                for equip_no, updated_equipment in updated_equipment_map.items():
+                    if equip_no in self.equipment_map:
+                        # Update the equipment in the main map
+                        self.equipment_map[equip_no] = updated_equipment
+                
+                # Hide loading (if controller has this method)
+                if hasattr(self.controller, 'hide_loading'):
+                    try:
+                        self.parent.after(0, self.controller.hide_loading)
+                    except:
+                        print("Could not hide loading")
+                
+                # Show success message box
+                self.parent.after(0, lambda: messagebox.showinfo(
+                    "Save Successful", 
+                    f"Successfully saved {len(updated_equipment_map)} equipment items to Excel!"
                 ))
+                
+                # Try to show notification if controller supports it and main window exists
+                if (hasattr(self.controller, 'show_notification') and 
+                    hasattr(self.controller, 'root') and 
+                    self.controller.root.winfo_exists()):
+                    try:
+                        self.parent.after(0, lambda: self.controller.show_notification(
+                            f"Successfully saved {len(updated_equipment_map)} equipment items to Excel!",
+                            "success",
+                            5000
+                        ))
+                    except Exception as e:
+                        print(f"Could not show notification (main window might be rebuilding): {e}")
+                        # Show alternative feedback on page 2 if available
+                        self._show_page_2_feedback(f"✅ Saved {len(updated_equipment_map)} items")
+                
+            else:
+                error_msg = "Failed to save data to Excel"
+                print(f"❌ {error_msg}")
+                
+                # Hide loading
+                if hasattr(self.controller, 'hide_loading'):
+                    try:
+                        self.parent.after(0, self.controller.hide_loading)
+                    except:
+                        print("Could not hide loading")
+                
+                # Show error message box
+                self.parent.after(0, lambda: messagebox.showerror("Save Failed", error_msg))
+                
+        except Exception as e:
+            error_msg = f"Error saving data: {str(e)}"
+            print(f"❌ {error_msg}")
+            
+            # Hide loading
+            if hasattr(self.controller, 'hide_loading'):
+                try:
+                    self.parent.after(0, self.controller.hide_loading)
+                except:
+                    print("Could not hide loading")
+            
+            # Show error message box
+            self.parent.after(0, lambda: messagebox.showerror("Save Error", error_msg))
+            
+            import traceback
+            traceback.print_exc()
 
-        thread = threading.Thread(target=save_thread, daemon=True)
-        thread.start()
-
+    def _update_equipment_map_from_ui(self) -> Dict[str, Equipment]:
+        """Update equipment_map with data from UI entries and return updated map.
+        Only updates fields that have been changed by the user.
+        """
+        if not self.equipment_map:
+            return {}
+        
+        # Track which equipment had changes
+        equipment_changed = {}
+        
+        # Create a deep copy of the equipment map to modify
+        updated_equipment_map = {}
+        for equip_no, equipment in self.equipment_map.items():
+            # Create a new Equipment object with the same data
+            new_equipment = Equipment(
+                equipment_number=equipment.equipment_number,
+                pmt_number=equipment.pmt_number,
+                equipment_description=equipment.equipment_description,
+                row_index=equipment.row_index
+            )
+            
+            # Copy components
+            for component in equipment.components:
+                new_component = Component(
+                    component_name=component.component_name,
+                    phase=component.phase,
+                    existing_data=component.existing_data.copy(),  # Copy existing data
+                    row_index=component.row_index
+                )
+                new_equipment.add_component(new_component)
+            
+            updated_equipment_map[equip_no] = new_equipment
+            equipment_changed[equip_no] = False  # Initialize as unchanged
+        
+        # Update with data from UI entries
+        for path, entries in self.file_to_textboxes.items():
+            if not entries:
+                continue
+            
+            # Group entries by row (15 columns per row)
+            num_columns = 15
+            num_rows = len(entries) // num_columns
+            
+            for row_idx in range(num_rows):
+                start_idx = row_idx * num_columns
+                end_idx = start_idx + num_columns
+                
+                if end_idx <= len(entries):
+                    row_entries = entries[start_idx:end_idx]
+                    
+                    equipment_no = row_entries[1].get().strip()
+                    parts = row_entries[4].get().strip()  # Component name
+                    
+                    if equipment_no and equipment_no in updated_equipment_map and parts:
+                        equipment = updated_equipment_map[equipment_no]
+                        
+                        # Find the component by name
+                        for component in equipment.components:
+                            if component.component_name == parts:
+                                # Track changes for this equipment
+                                changes_made = False
+                                
+                                # Get current component data
+                                current_data = component.existing_data.copy()
+                                
+                                # Map UI field names to component data keys
+                                ui_updates = {
+                                    'fluid': row_entries[6].get().strip(),
+                                    'type': row_entries[7].get().strip(),
+                                    'spec': row_entries[8].get().strip(),
+                                    'grade': row_entries[9].get().strip(),
+                                    'insulation': row_entries[10].get().strip(),
+                                    'design_temp': row_entries[11].get().strip(),
+                                    'design_pressure': row_entries[12].get().strip(),
+                                    'operating_temp': row_entries[13].get().strip(),
+                                    'operating_pressure': row_entries[14].get().strip(),
+                                }
+                                
+                                # Check which fields exist in the component's data
+                                existing_keys = list(current_data.keys())
+                                updates = {}
+                                
+                                for ui_key, ui_value in ui_updates.items():
+                                    # Only update if user entered something (non-empty)
+                                    if ui_value:  # User edited this field
+                                        # Try to find matching key (case-insensitive)
+                                        matching_key = None
+                                        for existing_key in existing_keys:
+                                            if existing_key.lower() == ui_key.lower():
+                                                matching_key = existing_key
+                                                break
+                                        
+                                        if matching_key:
+                                            # Check if value actually changed
+                                            current_value = str(current_data.get(matching_key, ''))
+                                            if current_value != ui_value:
+                                                updates[matching_key] = ui_value
+                                                changes_made = True
+                                        else:
+                                            # If no matching key found, add it as new
+                                            updates[ui_key] = ui_value
+                                            changes_made = True
+                                
+                                if updates:
+                                    try:
+                                        component.update_existing_data(updates)
+                                    except KeyError:
+                                        # If some keys don't exist, add them to existing_data
+                                        for key, value in updates.items():
+                                            component.existing_data[key] = value
+                                    
+                                    if changes_made:
+                                        equipment_changed[equipment_no] = True
+                                
+                                break  # Found the component, no need to continue
+        
+        # Filter to only include equipment that had changes
+        changed_count = sum(1 for changed in equipment_changed.values() if changed)
+        
+        if changed_count > 0:
+            changed_equipment = {k: v for k, v in updated_equipment_map.items() if equipment_changed[k]}
+            # Store the log message to be displayed later if needed
+            self._last_log_message = f"Found changes in {len(changed_equipment)} equipment items"
+            print(f"📝 {self._last_log_message}")  # Debug print
+            return changed_equipment
+        else:
+            self._last_log_message = "No changes detected in equipment data"
+            print(f"📝 {self._last_log_message}")  # Debug print
+            return {}
+        
     def show(self) -> None:
         """Display the New Work interface (Page 1: Upload & Extract)."""
         self.show_page_1()
@@ -598,6 +856,8 @@ class NewWorkView:
         """Page 1: File selection, extraction, and logs."""
         self.current_page = 1
         self.extraction_complete = False
+        self.page_1_widgets_available = True
+        self.page_2_widgets_available = False
         
         # Clear existing widgets
         for widget in self.parent.winfo_children():
@@ -881,7 +1141,9 @@ class NewWorkView:
     def show_page_2(self) -> None:
         """Page 2: Review and edit extracted data, then save."""
         self.current_page = 2
-
+        self.page_1_widgets_available = False
+        self.page_2_widgets_available = True
+        
         # Clear existing widgets
         for widget in self.parent.winfo_children():
             widget.destroy()

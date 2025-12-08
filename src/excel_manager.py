@@ -253,8 +253,8 @@ class ExcelManager:
                 os.makedirs(os.path.join(self.default_path, f"user_{user_id}", "excel"), exist_ok=True)
                 base, ext = os.path.splitext(self.file_path)
                 path, base_name = os.path.split(base)
-                path = f"user_{user_id}\\excel"
-                output_path = os.path.join(self.default_path, path, f"{user_id}_{base_name}_modified{ext}")
+                path = f"{user_id}\\excel"
+                output_path = os.path.join(self.default_path, path, f"{base_name}{ext}")
             
             # Save the workbook
             self.wb.save(output_path)
