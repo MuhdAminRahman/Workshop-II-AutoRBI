@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy.orm import Session
-from database.models import CorrectionLog
+from AutoRBI_Database.database.models import CorrectionLog
 
 
 # 1. Create a correction log record

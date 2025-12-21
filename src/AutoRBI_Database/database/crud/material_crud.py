@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from database.models import TypeMaterial
+from AutoRBI_Database.database.models import TypeMaterial
 
 
 # 1. Insert a material (Admin only)

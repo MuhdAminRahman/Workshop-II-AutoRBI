@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String
-from database.base import Base
+from AutoRBI_Database.database import Base
 
 class TypeMaterial(Base):
     __tablename__ = "type_material"

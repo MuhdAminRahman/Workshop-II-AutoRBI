@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from database.models import Component
+from AutoRBI_Database.database.models import Component
 
 
 # Normalize insulation to lowercase ("yes" or "no")

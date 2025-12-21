@@ -1,8 +1,8 @@
-from database.base import Base
-from database.session import engine
+from AutoRBI_Database.base import Base
+from AutoRBI_Database.session import engine
 
 # Import ALL models so SQLAlchemy knows them
-from database.models import (
+from AutoRBI_Database.models import (
     User,
     Work,
     TypeMaterial,

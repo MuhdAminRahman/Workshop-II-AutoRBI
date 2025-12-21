@@ -10,6 +10,9 @@ from .analytics import AnalyticsView
 from .settings import SettingsView
 from .profile import ProfileView
 
+from .user_management import UserManagementView
+
+
 __all__ = [
     "LoginView",
     "RegistrationView",
@@ -20,5 +23,6 @@ __all__ = [
     "AnalyticsView",
     "SettingsView",
     "ProfileView",
+    "UserManagementView",
 ]
 

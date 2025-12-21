@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, ForeignKey, DateTime
 from datetime import datetime
-from database.base import Base
+from AutoRBI_Database.database import Base
 
 class CorrectionLog(Base):
     __tablename__ = "correction_log"
