@@ -14,6 +14,7 @@ from .page_builders import Page1Builder, Page2Builder
 from .ui_updater import UIUpdateManager
 from UserInterface.managers.extraction_manager import ExtractionManager
 from UserInterface.managers.state_manager import ViewState
+from UserInterface.managers.powerpoint_export_manager import PowerPointExportManager
 from UserInterface.services.file_service import FileService
 from UserInterface.services.equipment_service import EquipmentService
 from UserInterface.utils.threading_utils import SafeThreadExecutor, LoadingContext
@@ -92,6 +93,15 @@ class NewWorkView:
             self.ui_updater,
             self.log_callback
         )
+        self.powerpoint_manager = PowerPointExportManager(
+            project_root=self.project_root,
+            state=self.state,
+            controller=self.controller,
+            executor=self.executor,
+            log_callback=self.log_callback,
+            parent_window=self.parent  # Pass parent window reference
+        )
+
         
         # Initialize UI builders (but don't build yet)
         self.page1_builder = Page1Builder(parent, self)
@@ -1155,19 +1165,8 @@ class NewWorkView:
             return
         
         # Proceed with export
-        self.open_powerpoint_dialog()
+        self.powerpoint_manager.export_to_powerpoint()
 
-    
-    def open_powerpoint_dialog(self) -> None:
-        """Open PowerPoint export dialog"""
-        if not self.state.has_equipment_data:
-            messagebox.showwarning("No Data", Messages.NO_DATA)
-            return
-        
-        # Implementation similar to original _open_powerpoint_export_dialog
-        # (keeping this simple for brevity - you can expand it)
-        messagebox.showinfo("PowerPoint", "PowerPoint export dialog would open here")
-    
     # =========================================================================
     # UTILITIES
     # =========================================================================

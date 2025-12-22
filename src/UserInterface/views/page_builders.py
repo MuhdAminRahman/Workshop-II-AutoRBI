@@ -451,7 +451,7 @@ class Page2Builder(PageBuilderBase):
             ppt_btn = ctk.CTkButton(
                 action_section,
                 text="📊 Export to PowerPoint",
-                command=self.view.open_powerpoint_dialog,
+                command=self.view.export_to_powerpoint,
                 height=Sizes.BUTTON_HEIGHT,
                 font=Fonts.BUTTON,
                 fg_color=("#0066CC", "#004C99"),
