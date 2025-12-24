@@ -52,13 +52,25 @@ class MainMenuView:
 
         # Schedule next update only if parent window still exists
         try:
-            if hasattr(self.parent, 'winfo_exists') and self.parent.winfo_exists():
+            if hasattr(self.parent, "winfo_exists") and self.parent.winfo_exists():
                 self.parent.after(1000, self._update_datetime)
         except Exception:
             pass
 
     def show(self) -> None:
         """Display the main menu interface."""
+
+        # Clear existing widgets
+        for widget in self.parent.winfo_children():
+            widget.destroy()
+
+        # Get current user data from controller
+        user = self.controller.current_user
+
+        # Extract user info with fallbacks
+        full_name = user.get("full_name") or user.get("username") or "Unknown User"
+        username = user.get("username") or "unknown"
+
         # Clear existing widgets
         for widget in self.parent.winfo_children():
             widget.destroy()
@@ -102,7 +114,9 @@ class MainMenuView:
             corner_radius=18,
         )
         search_entry.pack(fill="x", expand=True)
-        search_entry.bind("<KeyRelease>", lambda e: self._handle_search(search_entry.get()))
+        search_entry.bind(
+            "<KeyRelease>", lambda e: self._handle_search(search_entry.get())
+        )
 
         # Search results dropdown (initially hidden)
         self.search_results_frame = ctk.CTkFrame(
@@ -130,7 +144,7 @@ class MainMenuView:
         # Username label (optional - can be hidden)
         username_label = ctk.CTkLabel(
             profile_section,
-            text="John Doe",  # TODO: Backend - Get from backend
+            text=full_name,  # TODO: Backend - Get from backend
             font=("Segoe UI", 11),
             text_color=("gray60", "gray80"),
         )
@@ -147,15 +161,15 @@ class MainMenuView:
             border_color=("gray70", "gray40"),
         )
         avatar_frame.pack(side="left", padx=(0, 8))
-        
+
         def on_avatar_click(e):
             """Handle avatar click - stop event propagation."""
             e.widget.focus_set()
             self._toggle_profile_dropdown()
             return "break"  # Stop event propagation
-        
+
         avatar_frame.bind("<Button-1>", on_avatar_click)
-        
+
         # Avatar icon/label inside circle
         avatar_label = ctk.CTkLabel(
             avatar_frame,
@@ -165,14 +179,18 @@ class MainMenuView:
         )
         avatar_label.place(relx=0.5, rely=0.5, anchor="center")
         avatar_label.bind("<Button-1>", on_avatar_click)
-        
+
         # Make the frame clickable with hover effect
         def on_enter(e):
-            avatar_frame.configure(fg_color=("gray75", "gray35"), border_color=("gray65", "gray45"))
-        
+            avatar_frame.configure(
+                fg_color=("gray75", "gray35"), border_color=("gray65", "gray45")
+            )
+
         def on_leave(e):
-            avatar_frame.configure(fg_color=("gray80", "gray30"), border_color=("gray70", "gray40"))
-        
+            avatar_frame.configure(
+                fg_color=("gray80", "gray30"), border_color=("gray70", "gray40")
+            )
+
         for widget in [avatar_frame, avatar_label]:
             widget.bind("<Enter>", on_enter)
             widget.bind("<Leave>", on_leave)
@@ -204,12 +222,13 @@ class MainMenuView:
         self.profile_section_ref = profile_section
         self.avatar_frame_ref = avatar_frame
         self.avatar_label_ref = avatar_label
-        
+
         # Bind click outside to close dropdowns (use after a delay to allow dropdown to show)
         def delayed_click_handler(event):
             # Only check for outside clicks if dropdown is open
             if self.profile_dropdown_open:
                 self.parent.after(100, lambda: self._handle_click_outside(event))
+
         root_frame.bind("<Button-1>", delayed_click_handler)
 
         # Main content area
@@ -251,14 +270,50 @@ class MainMenuView:
 
         # Button configurations
         menu_buttons = [
-            ("New Work", "Create and manage new work items.", self.controller.show_new_work),
-            ("Report Menu", "Generate and review reports.", self.controller.show_report_menu),
+            (
+                "New Work",
+                "Create and manage new work items.",
+                self.controller.show_new_work,
+            ),
+            (
+                "Report Menu",
+                "Generate and review reports.",
+                self.controller.show_report_menu,
+            ),
             (
                 "Work History Menu",
                 "Browse historical work items and activities.",
                 self.controller.show_work_history,
             ),
-            ("Analytics Dashboard", "View performance and risk analytics.", self.controller.show_analytics),
+            (
+                "Analytics Dashboard",
+                "View performance and risk analytics.",
+                self.controller.show_analytics,
+            ),
+        ]
+
+        # Button configurations
+        menu_buttons = [
+            (
+                "New Work",
+                "Create and manage new work items.",
+                self.controller.show_new_work,
+            ),
+            (
+                "Report Menu",
+                "Generate and review reports.",
+                self.controller.show_report_menu,
+            ),
+            (
+                "Work History Menu",
+                "Browse historical work items and activities.",
+                self.controller.show_work_history,
+            ),
+            (
+                "Analytics Dashboard",
+                "View performance and risk analytics.",
+                self.controller.show_analytics,
+            ),
         ]
 
         # Create "cards" with button and description
@@ -311,6 +366,84 @@ class MainMenuView:
             )
             action_btn.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 16))
 
+        # ================================================================
+        # ADMIN SECTION (Only visible to admins)
+        # ================================================================
+        
+        current_user_role = self.controller.current_user.get("role")
+        
+        if current_user_role == "Admin":
+            # Add a third row for admin section
+            buttons_frame.grid_rowconfigure(2, weight=1)
+            
+            # Admin section separator
+            admin_separator = ctk.CTkFrame(
+                buttons_frame,
+                height=2,
+                fg_color=("gray80", "gray30"),
+            )
+            admin_separator.grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=(20, 10))
+            
+            # Admin label
+            admin_label = ctk.CTkLabel(
+                buttons_frame,
+                text="Administration",
+                font=("Segoe UI", 12, "bold"),
+                text_color=("gray50", "gray70"),
+            )
+            admin_label.grid(row=3, column=0, sticky="w", padx=14, pady=(0, 5))
+            
+            # Admin card row
+            buttons_frame.grid_rowconfigure(4, weight=1)
+            
+            # User Management card
+            admin_card = ctk.CTkFrame(
+                buttons_frame,
+                corner_radius=16,
+                border_width=1,
+                border_color=("#3498db", "#2980b9"),  # Blue border for admin card
+            )
+            admin_card.grid(
+                row=4,
+                column=0,
+                padx=10,
+                pady=10,
+                sticky="nsew",
+            )
+
+            admin_card.grid_rowconfigure(1, weight=1)
+            admin_card.grid_columnconfigure(0, weight=1)
+
+            admin_title_lbl = ctk.CTkLabel(
+                admin_card,
+                text="👥 User Management",
+                font=("Segoe UI", 15, "bold"),
+                anchor="w",
+            )
+            admin_title_lbl.grid(row=0, column=0, sticky="w", padx=18, pady=(14, 4))
+
+            admin_desc_lbl = ctk.CTkLabel(
+                admin_card,
+                text="Manage user accounts, roles, and access permissions.",
+                font=("Segoe UI", 11),
+                text_color=("gray25", "gray80"),
+                anchor="w",
+                justify="left",
+                wraplength=260,
+            )
+            admin_desc_lbl.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 10))
+
+            admin_action_btn = ctk.CTkButton(
+                admin_card,
+                text="Manage Users",
+                command=self.controller.show_user_management,
+                height=32,
+                font=("Segoe UI", 10, "bold"),
+                fg_color=("#3498db", "#2980b9"),  # Blue button for admin
+                hover_color=("#2980b9", "#1f5f89"),
+            )
+            admin_action_btn.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 16))
+
     def _toggle_profile_dropdown(self) -> None:
         """Toggle profile dropdown menu."""
         if self.profile_dropdown_open:
@@ -321,7 +454,7 @@ class MainMenuView:
     def _show_profile_dropdown(self) -> None:
         """Show profile dropdown menu."""
         self.profile_dropdown_open = True
-        
+
         # Clear existing items
         for widget in self.profile_dropdown.winfo_children():
             widget.destroy()
@@ -331,7 +464,7 @@ class MainMenuView:
         window_width = self.parent.winfo_width() or 1100  # Default if not yet rendered
         dropdown_x = window_width - 220  # 200px from right + 20px padding
         self.profile_dropdown.place(x=dropdown_x, y=80, anchor="ne")
-        
+
         # Ensure dropdown is visible and on top of all widgets
         self.profile_dropdown.lift()
         self.profile_dropdown.tkraise()
@@ -379,25 +512,28 @@ class MainMenuView:
     def _navigate_to_profile(self) -> None:
         """Navigate to profile page."""
         self._hide_profile_dropdown()
-        if hasattr(self.controller, 'show_profile'):
+        if hasattr(self.controller, "show_profile"):
             self.controller.show_profile()
         else:
             import tkinter.messagebox as mb
+
             mb.showinfo("Info", "Profile page will be available soon.")
 
     def _navigate_to_settings(self) -> None:
         """Navigate to settings page."""
         self._hide_profile_dropdown()
-        if hasattr(self.controller, 'show_settings'):
+        if hasattr(self.controller, "show_settings"):
             self.controller.show_settings()
         else:
             import tkinter.messagebox as mb
+
             mb.showinfo("Info", "Settings page will be available soon.")
 
     def _show_help(self) -> None:
         """Show help dialog."""
         self._hide_profile_dropdown()
         import tkinter.messagebox as mb
+
         mb.showinfo(
             "Help",
             "AutoRBI Help\n\n"
@@ -409,7 +545,7 @@ class MainMenuView:
             "Ctrl+N - New Work\n"
             "Ctrl+R - Reports\n"
             "Ctrl+H - History\n"
-            "Ctrl+A - Analytics"
+            "Ctrl+A - Analytics",
         )
 
     def _handle_search(self, query: str) -> None:
@@ -489,36 +625,39 @@ class MainMenuView:
         """Handle clicks outside dropdowns to close them."""
         if not self.profile_dropdown_open:
             return
-        
+
         # Don't close if clicking on avatar or profile section
         try:
             widget = event.widget
             # Check if click is on avatar frame, avatar label, or profile section
-            if (hasattr(self, 'avatar_frame_ref') and 
-                (widget == self.avatar_frame_ref or 
-                 str(widget).find('avatar') != -1 or
-                 widget.master == self.avatar_frame_ref or
-                 widget.master == self.profile_section_ref)):
+            if hasattr(self, "avatar_frame_ref") and (
+                widget == self.avatar_frame_ref
+                or str(widget).find("avatar") != -1
+                or widget.master == self.avatar_frame_ref
+                or widget.master == self.profile_section_ref
+            ):
                 return
         except:
             pass
-            
+
         # Check if click is outside profile dropdown
         if self.profile_dropdown.winfo_exists():
             try:
                 # Get click coordinates
                 x = event.x_root
                 y = event.y_root
-                
+
                 # Get dropdown position and size (absolute coordinates)
                 dropdown_x = self.profile_dropdown.winfo_rootx()
                 dropdown_y = self.profile_dropdown.winfo_rooty()
                 dropdown_w = self.profile_dropdown.winfo_width()
                 dropdown_h = self.profile_dropdown.winfo_height()
-                
+
                 # Check if click is outside dropdown
-                if not (dropdown_x <= x <= dropdown_x + dropdown_w and 
-                       dropdown_y <= y <= dropdown_y + dropdown_h):
+                if not (
+                    dropdown_x <= x <= dropdown_x + dropdown_w
+                    and dropdown_y <= y <= dropdown_y + dropdown_h
+                ):
                     self._hide_profile_dropdown()
             except Exception:
                 # If any error, just hide the dropdown
@@ -535,9 +674,11 @@ class MainMenuView:
                 results_y = self.search_results_frame.winfo_y()
                 results_w = self.search_results_frame.winfo_width()
                 results_h = self.search_results_frame.winfo_height()
-                
-                if not (results_x <= x <= results_x + results_w and 
-                       results_y <= y <= results_y + results_h):
+
+                if not (
+                    results_x <= x <= results_x + results_w
+                    and results_y <= y <= results_y + results_h
+                ):
                     self._hide_search_results()
             except:
                 pass

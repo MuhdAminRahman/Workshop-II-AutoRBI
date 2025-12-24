@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Enum
-from database.base import Base
+from database import Base
 
 class Component(Base):
     __tablename__ = "component"

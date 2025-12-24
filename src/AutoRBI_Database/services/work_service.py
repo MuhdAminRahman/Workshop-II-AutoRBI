@@ -7,8 +7,8 @@ and Components in one safe transaction.
 
 from datetime import datetime
 from sqlalchemy.orm import Session
-from database.models import Work, Equipment, Component
-from database.crud import create_history
+from AutoRBI_Database.database.models import Work, Equipment, Component
+from AutoRBI_Database.database.crud import create_history
 
 
 def create_work_with_items(db: Session, work_name: str, description: str, parsed_equipment: list, user_id: int):

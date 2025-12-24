@@ -9,9 +9,16 @@ from .work_history import WorkHistoryView
 from .analytics import AnalyticsView
 from .settings import SettingsView
 from .profile import ProfileView
+<<<<<<< HEAD
 from .constants import Fonts, Colors, Sizes, Messages, TableColumns
 from .page_builders import Page1Builder, Page2Builder
 from .ui_updater import UIUpdateManager
+=======
+
+from .user_management import UserManagementView
+
+
+>>>>>>> 805a53157ef5b5a66b96b21fa3da9937c1448072
 __all__ = [
     "LoginView",
     "RegistrationView",
@@ -22,6 +29,7 @@ __all__ = [
     "AnalyticsView",
     "SettingsView",
     "ProfileView",
+<<<<<<< HEAD
     "Fonts",
     "Colors",
     "Sizes",
@@ -30,5 +38,8 @@ __all__ = [
     "Page1Builder",
     "Page2Builder",
     "UIUpdateManager"
+=======
+    "UserManagementView",
+>>>>>>> 805a53157ef5b5a66b96b21fa3da9937c1448072
 ]
 

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from database.models import Work
+from AutoRBI_Database.database.models import Work
 from datetime import datetime
 
 # Normalizer for Work status

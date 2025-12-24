@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String
-from database.base import Base
+from database import Base
 
 class TypeMaterial(Base):
     __tablename__ = "type_material"

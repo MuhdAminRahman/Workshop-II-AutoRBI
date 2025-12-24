@@ -1,7 +1,7 @@
 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from database.models import Equipment
+from AutoRBI_Database.database.models import Equipment
 from datetime import datetime
 
 

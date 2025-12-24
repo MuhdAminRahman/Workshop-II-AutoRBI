@@ -5,6 +5,15 @@ from tkinter import messagebox
 import customtkinter as ctk
 
 
+from AutoRBI_Database.validation_rules import (
+    UsernameRules,
+    PasswordRules,
+    FullNameRules,
+    get_username_validation_error,
+    get_password_validation_error,
+    get_fullname_validation_error,
+)
+
 class RegistrationView:
     """Handles the registration interface."""
 
@@ -169,34 +178,178 @@ class RegistrationView:
 
         # Register button
         def handle_register() -> None:
-            fullname = fullname_entry.get().strip()
-            username = username_entry.get().strip()
-            password = password_entry.get().strip()
-            confirm = confirm_entry.get().strip()
+            """
+            Handle registration button click with comprehensive validation and error handling.
 
-            if not all([fullname, username, password, confirm]):
-                messagebox.showwarning("Registration Error", "Please fill in all fields.")
+            This method implements:
+            - 6. Input Validation: Multi-layer validation with specific feedback
+            - 7. User-Friendly Messages: Clear, actionable error messages
+            - 8. Error Context: Field-specific error handling
+
+            Flow:
+            1. Get and clean input values
+            2. Validate all fields at UI level
+            3. Call backend registration
+            4. Handle response based on error_type
+            5. Provide appropriate feedback
+            """
+            # Get input values
+            fullname = fullname_entry.get()
+            username = username_entry.get()
+            password = password_entry.get()
+            confirm = confirm_entry.get()
+
+            # ==================================================================
+            # LAYER 1: UI-LEVEL VALIDATION 
+            # Using centralized rules from validation_rules.py
+            # ==================================================================
+
+            # Validate full name using centralized validation
+            fullname_error = get_fullname_validation_error(fullname)
+            if fullname_error:
+                messagebox.showwarning("Invalid Full Name", fullname_error)
+                fullname_entry.focus()
+                fullname_entry.select_range(0, "end")
                 return
 
+            # Validate username using centralized validation
+            username_error = get_username_validation_error(username)
+            if username_error:
+                messagebox.showwarning("Invalid Username", username_error)
+                username_entry.focus()
+                username_entry.select_range(0, "end")
+                return
+
+            # Validate password using centralized validation
+            password_error = get_password_validation_error(password)
+            if password_error:
+                messagebox.showwarning("Invalid Password", password_error)
+                password_entry.delete(0, "end")
+                confirm_entry.delete(0, "end")
+                password_entry.focus()
+                return
+
+            # Check if passwords match (this is UI-only, not a backend rule)
             if password != confirm:
-                messagebox.showerror("Registration Error", "Passwords do not match.")
-                return
-
-            if len(password) < 6:
-                messagebox.showwarning(
-                    "Registration Error",
-                    "Password must be at least 6 characters long.",
+                messagebox.showerror(
+                    "Passwords Don't Match",
+                    PasswordRules.ERRORS["mismatch"] + "\n"
+                    "Please ensure both password fields are identical.",
                 )
+                # Clear both password fields for security
+                password_entry.delete(0, "end")
+                confirm_entry.delete(0, "end")
+                password_entry.focus()
                 return
 
-            # TODO: Backend - Integrate with backend registration and user creation
-            # if backend.register(fullname, username, password):
-            messagebox.showinfo(
-                "Success", "Registration successful! You can now login."
-            )
-            self.controller.show_login()
-            # else:
-            #     messagebox.showerror("Registration Failed", "Username already exists or registration failed.")
+            # Optional: Check for password strength (warning only, not blocking)
+            # This is controlled by PasswordRules flags - if REQUIRE_DIGIT/LETTER are False,
+            # we just warn the user but let them continue
+            has_digit = any(char.isdigit() for char in password)
+            has_letter = any(char.isalpha() for char in password)
+
+            if not (has_digit and has_letter):
+                # This is a warning, not blocking - user can choose to continue
+                response = messagebox.askyesno(
+                    "Weak Password",
+                    "Your password should contain both letters and numbers for better security.\n\n"
+                    "Do you want to continue with this password?",
+                )
+                if not response:
+                    password_entry.focus()
+                    password_entry.select_range(0, "end")
+                    return
+
+            # Clean inputs for backend call
+            fullname_clean = fullname.strip()
+            username_clean = username.strip()
+
+            # ==================================================================
+            # LAYER 2: BACKEND REGISTRATION
+            # ==================================================================
+            try:
+                # Call backend registration via the app controller
+                result = self.controller.register_user(
+                    full_name=fullname_clean,
+                    username=username_clean,
+                    password=password,
+                )
+
+                # ==============================================================
+                # LAYER 3: HANDLE RESPONSE BASED ON RESULT
+                # ==============================================================
+                if result.get("success"):
+                    # SUCCESS - Show success message and return to login
+                    messagebox.showinfo(
+                        "Registration Successful",
+                        result.get(
+                            "message",
+                            "Registration successful! You can now login with your credentials.",
+                        ),
+                    )
+
+                    # Navigate to login screen
+                    self.controller.show_login()
+
+                else:
+                    # FAILURE - Handle based on error_type
+                    error_type = result.get("error_type", "unknown")
+                    message = result.get("message", "Registration failed")
+
+                    # Different handling for different error types
+                    if error_type == "validation":
+                        messagebox.showwarning("Validation Error", message)
+
+                        # Focus on the problematic field if specified
+                        field = result.get("field", "")
+                        if field == "username":
+                            username_entry.focus()
+                            username_entry.select_range(0, "end")
+                        elif field == "password":
+                            password_entry.delete(0, "end")
+                            confirm_entry.delete(0, "end")
+                            password_entry.focus()
+                        elif field in ("fullname", "full_name"):
+                            fullname_entry.focus()
+                            fullname_entry.select_range(0, "end")
+
+                    elif error_type == "account_exists":
+                        # Username already taken
+                        messagebox.showerror(
+                            "Username Taken",
+                            message + "\n\nPlease try a different username.",
+                        )
+                        # Clear username and focus for retry
+                        username_entry.delete(0, "end")
+                        username_entry.focus()
+
+                    elif error_type == "system":
+                        # System error (database, network, etc.)
+                        messagebox.showerror(
+                            "Registration Error",
+                            f"{message}\n\n"
+                            "This is a temporary issue. Please try again in a few moments.\n"
+                            "If the problem persists, contact support.",
+                        )
+
+                    else:
+                        # Unknown error type - generic handling
+                        messagebox.showerror(
+                            "Registration Failed",
+                            f"{message}\n\n"
+                            "Please try again or contact support if this continues.",
+                        )
+
+            except Exception as e:
+                # Catch-all for any unexpected UI-level errors
+                messagebox.showerror(
+                    "Unexpected Error",
+                    "An unexpected error occurred during registration.\n"
+                    "Please try again or contact support.",
+                )
+                # Basic logging
+                print(f"UI Error in registration: {e}")
+                
 
         # Primary button with glass effect
         register_btn = ctk.CTkButton(

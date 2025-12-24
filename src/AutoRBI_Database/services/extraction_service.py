@@ -11,8 +11,8 @@ What it does:
 
 from datetime import datetime
 from sqlalchemy.orm import Session
-from database.models import Equipment, Component
-from database.crud import (
+from AutoRBI_Database.database.models import Equipment, Component
+from AutoRBI_Database.database.crud import (
     get_equipment_by_id,
     get_component_by_id,
     create_history,

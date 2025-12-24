@@ -18,7 +18,7 @@ What it does (short):
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from database.crud import (
+from AutoRBI_Database.database.crud import (
     get_components_by_equipment,
     get_component_by_id,
     update_component,
@@ -26,7 +26,7 @@ from database.crud import (
     create_history,
     get_work_by_id,
 )
-from database.models import Component
+from AutoRBI_Database.database.models import Component
 
 
 # Fields we track per component (matches your model)
@@ -170,7 +170,7 @@ def apply_corrections(db: Session, equipment_id: int, user_id: int, corrections:
         description = f"{fields_corrected}/{fields_to_fill} fields corrected by user {user_id}."
         # obtain work_id if available via equipment query (light DB fetch)
         # We will use the equipment's work_id via a quick lookup
-        from database.crud import get_equipment_by_id
+        from AutoRBI_Database.database.crud import get_equipment_by_id
         eq = get_equipment_by_id(db, equipment_id)
         work_id = eq.work_id if eq else None
 

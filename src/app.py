@@ -1,8 +1,22 @@
 """Main application class for AutoRBI."""
 
 from tkinter import messagebox
-
 import customtkinter as ctk
+
+import sys, os
+
+# Absolute path to the folder where *this* file (app.py) lives
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# BASE_DIR == "C:\\Users\\user\\Desktop\\Workshop2\\AutoRBI\\src"
+
+# Path to the AutoRBI_Database folder
+DB_ROOT = os.path.join(BASE_DIR, "AutoRBI_Database")
+# DB_ROOT == "C:\\Users\\user\\Desktop\\Workshop2\\AutoRBI\\src\\AutoRBI_Database"
+
+# Add it to sys.path if it's not already there
+if DB_ROOT not in sys.path:
+    sys.path.append(DB_ROOT)
+
 
 import styles
 from UserInterface.views import (
@@ -15,8 +29,32 @@ from UserInterface.views import (
     WorkHistoryView,
     SettingsView,
     ProfileView,
+    UserManagementView,
 )
 from UserInterface.components import NotificationSystem, LoadingOverlay
+
+
+from AutoRBI_Database.database.session import SessionLocal
+from AutoRBI_Database.services.auth_service import (
+    authenticate_user as auth_login,
+    register_user as auth_register,
+)
+
+from AutoRBI_Database.exceptions import (
+    InvalidPasswordError,
+    InactiveAccountError,
+    AccountAlreadyExistsError,
+    ValidationError,
+    DatabaseError,
+)
+
+from AutoRBI_Database.messages import AuthMessages, RegistrationMessages, ErrorTypes
+from AutoRBI_Database.logging_config import get_logger
+from AutoRBI_Database.services import admin_service
+from AutoRBI_Database.services import profile_service
+
+# Initialize logger
+logger = get_logger(__name__)
 
 
 class AutoRBIApp(ctk.CTk):
@@ -54,21 +92,475 @@ class AutoRBIApp(ctk.CTk):
         self.analytics_view = AnalyticsView(self, self)
         self.settings_view = SettingsView(self, self)
         self.profile_view = ProfileView(self, self)
+        # Admin views
+        self.user_management_view = UserManagementView(self, self)
 
         # Current user info (TODO: Get from authentication)
         self.current_user = {
-            "username": "John Doe",
+            "username": "John",
             "role": "Engineer",
             "email": "john.doe@ipetro.com",
             "group": None,  # Employee group/department set after login
         }
-        
+
         # Current work context in New Work view
         self.current_work = None  # Currently selected work assignment
         self.available_works = []  # Works assigned to employee's group
 
         # Show login screen initially
         self.show_login()
+
+    def authenticate_user(self, username: str, password: str) -> dict:
+        """
+        Authenticate user with proper resource cleanup and error handling.
+
+        This method implements:
+        - Resource Cleanup: Database session always closes (try-finally)
+        - Graceful Degradation: Errors don't crash the app
+        - Logging: Track authentication flow
+
+        Args:
+            username: Username to authenticate
+            password: Plain text password
+
+        Returns:
+            Authentication result dictionary from auth_service
+        """
+        # LOGGING - Log authentication attempt at controller level
+        logger.info(f"Controller: Authentication request for username: {username}")
+
+        # RESOURCE CLEANUP - Create database session
+        db = SessionLocal()
+
+        try:
+            # Call the authentication service
+            result = auth_login(db, username, password)
+
+            # If successful, set current user session
+            if result["success"]:
+                user = result["user"]
+
+                try:
+                    # Extract user information for session
+                    self.current_user = {
+                        "id": user.user_id,
+                        "username": user.username,
+                        "full_name": getattr(user, "full_name", None),
+                        "role": getattr(user, "role", None),
+                        "email": getattr(user, "email", None),
+                        "created_at": getattr(user, "created_at", None),
+                    }
+
+                    # LOGGING - Log successful session creation
+                    logger.info(
+                        f"Controller: User session created for: {user.username}"
+                    )
+
+                except AttributeError as e:
+                    # Handle case where user object is missing expected attributes
+                    logger.error(
+                        f"Controller: Error extracting user attributes: {e}",
+                        exc_info=True,
+                    )
+
+                    # GRACEFUL DEGRADATION - Return error instead of crashing
+                    return {
+                        "success": False,
+                        "message": "Error processing user data. Please try again.",
+                        "user": None,
+                        "error_type": "system",
+                    }
+
+            # LOGGING - Log result
+            if result["success"]:
+                logger.info(f"Controller: Authentication successful for: {username}")
+            else:
+                logger.info(f"Controller: Authentication failed for: {username}")
+
+            return result
+
+        except Exception as e:
+            # Catch-all for any unexpected errors at controller level
+            logger.error(
+                f"Controller: Unexpected error during authentication: {e}",
+                exc_info=True,
+            )
+
+            return {
+                "success": False,
+                "message": "An unexpected error occurred. Please try again.",
+                "user": None,
+                "error_type": "system",
+            }
+
+        finally:
+            # ALWAYS close database session
+            try:
+                db.close()
+                logger.debug("Controller: Database session closed")
+            except Exception as e:
+                # Even closing can fail - log but don't raise
+                logger.error(
+                    f"Controller: Error closing database session: {e}",
+                    exc_info=True,
+                )
+
+    def register_user(self, full_name: str, username: str, password: str) -> dict:
+        """
+        Register new user with proper resource cleanup and error handling.
+
+        This method implements:
+        - Resource Cleanup: Database session always closes (try-finally)
+        - Graceful Degradation: Errors don't crash the app
+        - Logging: Track registration flow
+
+        Args:
+            full_name: User's full name
+            username: Desired username
+            password: Plain text password
+
+        Returns:
+            Registration result dictionary from auth_service
+        """
+        # LOGGING - Log registration attempt at controller level
+        logger.info(f"Controller: Registration request for username: {username}")
+
+        # RESOURCE CLEANUP - Create database session
+        db = SessionLocal()
+
+        try:
+            # Call the registration service
+            result = auth_register(db, full_name, username, password)
+
+            # LOGGING - Log result
+            if result["success"]:
+                logger.info(f"Controller: Registration successful for: {username}")
+            else:
+                logger.info(
+                    f"Controller: Registration failed for: {username} - "
+                    f"{result.get('error_type', 'unknown')}"
+                )
+
+            # Note: We don't automatically log in the user after registration
+            # They need to login separately for security
+            return result
+
+        except Exception as e:
+            # Catch-all for any unexpected errors at controller level
+            logger.error(
+                f"Controller: Unexpected error during registration: {e}",
+                exc_info=True,
+            )
+
+            return {
+                "success": False,
+                "message": (
+                    "An unexpected error occurred during registration. "
+                    "Please try again."
+                ),
+                "user": None,
+                "error_type": "system",
+            }
+
+        finally:
+            # ALWAYS close database session
+            try:
+                db.close()
+                logger.debug("Controller: Database session closed")
+            except Exception as e:
+                logger.error(
+                    f"Controller: Error closing database session: {e}",
+                    exc_info=True,
+                )
+
+    # ========================================================================
+    # ADMIN METHODS
+    # ========================================================================
+
+    def get_users_list(
+        self,
+        status_filter: str = None,
+        role_filter: str = None,
+        search_query: str = None,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> dict:
+        """
+        Get paginated list of users (admin only).
+
+        Args:
+            status_filter: "Active" or "Inactive" (None = all)
+            role_filter: "Admin" or "Engineer" (None = all)
+            search_query: Search term
+            page: Page number
+            per_page: Items per page
+
+        Returns:
+            Result dict with users list and pagination info
+        """
+        logger.info(f"Controller: Fetching users list (page {page})")
+
+        db = SessionLocal()
+        try:
+            result = admin_service.get_users(
+                db=db,
+                current_user=self.current_user,
+                status_filter=status_filter,
+                role_filter=role_filter,
+                search_query=search_query,
+                page=page,
+                per_page=per_page,
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Controller: Error fetching users: {e}")
+            return {
+                "success": False,
+                "message": "Unable to fetch users.",
+                "error_type": "system",
+            }
+        finally:
+            db.close()
+
+    def toggle_user_status(self, user_id: int) -> dict:
+        """
+        Toggle user active/inactive status (admin only).
+
+        Args:
+            user_id: ID of user to toggle
+
+        Returns:
+            Result dict
+        """
+        logger.info(f"Controller: Toggling status for user ID {user_id}")
+
+        db = SessionLocal()
+        try:
+            result = admin_service.toggle_user_status(
+                db=db, current_user=self.current_user, target_user_id=user_id
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Controller: Error toggling user status: {e}")
+            return {
+                "success": False,
+                "message": "Operation failed.",
+                "error_type": "system",
+            }
+        finally:
+            db.close()
+
+    def update_user(
+        self,
+        user_id: int,
+        full_name: str = None,
+        role: str = None,
+        new_password: str = None,
+    ) -> dict:
+        """
+        Update user details (admin only).
+
+        Args:
+            user_id: ID of user to update
+            full_name: New full name (None = don't change)
+            role: New role (None = don't change)
+            new_password: New password (None = don't change)
+
+        Returns:
+            Result dict
+        """
+        logger.info(f"Controller: Updating user ID {user_id}")
+
+        db = SessionLocal()
+        try:
+            result = admin_service.modify_user(
+                db=db,
+                current_user=self.current_user,
+                target_user_id=user_id,
+                full_name=full_name,
+                role=role,
+                new_password=new_password,
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Controller: Error updating user: {e}")
+            return {
+                "success": False,
+                "message": "Operation failed.",
+                "error_type": "system",
+            }
+        finally:
+            db.close()
+
+    def create_new_user(
+        self, username: str, full_name: str, password: str, role: str = "Engineer"
+    ) -> dict:
+        """
+        Create new user (admin only).
+
+        Args:
+            username: New username
+            full_name: Full name
+            password: Password
+            role: "Admin" or "Engineer"
+
+        Returns:
+            Result dict
+        """
+        logger.info(f"Controller: Creating new user '{username}'")
+
+        db = SessionLocal()
+        try:
+            result = admin_service.add_user(
+                db=db,
+                current_user=self.current_user,
+                username=username,
+                full_name=full_name,
+                password=password,
+                role=role,
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Controller: Error creating user: {e}")
+            return {
+                "success": False,
+                "message": "Operation failed.",
+                "error_type": "system",
+            }
+        finally:
+            db.close()
+
+    def show_user_management(self) -> None:
+        """Display the User Management view (admin only)."""
+        # Check if user is admin
+        if self.current_user.get("role") != "Admin":
+            messagebox.showerror(
+                "Access Denied", "Only administrators can access User Management."
+            )
+            return
+
+        # Show the view
+        self.user_management_view.show()
+
+    # ========================================================================
+    # PROFILE METHODS
+    # ========================================================================
+
+    def update_profile(self, full_name: str = None, email: str = None) -> dict:
+        """
+        Update current user's profile information.
+
+        Args:
+            full_name: New full name (None = don't change)
+            email: New email (None = don't change)
+
+        Returns:
+            Result dict with success status and updated user data
+        """
+        logger.info(
+            f"Controller: Updating profile for user ID {self.current_user.get('id')}"
+        )
+
+        db = SessionLocal()
+        try:
+            result = profile_service.update_profile(
+                db=db,
+                user_id=self.current_user.get("id"),
+                full_name=full_name,
+                email=email,
+            )
+
+            # Update session data if successful
+            if result.get("success") and result.get("user"):
+                user_data = result["user"]
+                self.current_user["full_name"] = user_data.get("full_name")
+                self.current_user["email"] = user_data.get("email")
+                logger.info("Controller: Session data updated with new profile info")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Controller: Error updating profile: {e}")
+            return {
+                "success": False,
+                "message": "Unable to update profile.",
+                "error_type": "system",
+            }
+        finally:
+            db.close()
+
+    def change_password(self, current_password: str, new_password: str) -> dict:
+        """
+        Change current user's password.
+
+        Args:
+            current_password: Current password for verification
+            new_password: New password to set
+
+        Returns:
+            Result dict with success status
+        """
+        logger.info(
+            f"Controller: Changing password for user ID {self.current_user.get('id')}"
+        )
+
+        db = SessionLocal()
+        try:
+            result = profile_service.change_password(
+                db=db,
+                user_id=self.current_user.get("id"),
+                current_password=current_password,
+                new_password=new_password,
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Controller: Error changing password: {e}")
+            return {
+                "success": False,
+                "message": "Unable to change password.",
+                "error_type": "system",
+            }
+        finally:
+            db.close()
+
+    def refresh_profile(self) -> dict:
+        """
+        Refresh current user's profile from database.
+
+        Returns:
+            Result dict with user data
+        """
+        logger.info(
+            f"Controller: Refreshing profile for user ID {self.current_user.get('id')}"
+        )
+
+        db = SessionLocal()
+        try:
+            result = profile_service.get_profile(
+                db=db, user_id=self.current_user.get("id")
+            )
+
+            # Update session data if successful
+            if result.get("success") and result.get("user"):
+                user_data = result["user"]
+                self.current_user["full_name"] = user_data.get("full_name")
+                self.current_user["email"] = user_data.get("email")
+                self.current_user["role"] = user_data.get("role")
+                self.current_user["created_at"] = user_data.get("created_at")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Controller: Error refreshing profile: {e}")
+            return {
+                "success": False,
+                "message": "Unable to load profile.",
+                "error_type": "system",
+            }
+        finally:
+            db.close()
 
     # ------------------------------------------------------------------ #
     # Navigation helpers
@@ -115,11 +607,15 @@ class AutoRBIApp(ctk.CTk):
             self.notification_system.clear_all()
             self.show_login()
 
-    def show_notification(self, message: str, notification_type: str = "info", duration: int = 5000) -> None:
+    def show_notification(
+        self, message: str, notification_type: str = "info", duration: int = 5000
+    ) -> None:
         """Show a notification."""
         self.notification_system.show_notification(message, notification_type, duration)
 
-    def show_loading(self, message: str = "Loading...", show_progress: bool = False) -> None:
+    def show_loading(
+        self, message: str = "Loading...", show_progress: bool = False
+    ) -> None:
         """Show loading overlay."""
         self.loading_overlay.show(message, show_progress)
 
@@ -130,4 +626,3 @@ class AutoRBIApp(ctk.CTk):
     def update_loading_progress(self, value: float, message: str = None) -> None:
         """Update loading progress (0.0 to 1.0)."""
         self.loading_overlay.update_progress(value, message)
-

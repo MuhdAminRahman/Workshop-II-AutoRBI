@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy.orm import Session
-from database.models import AssignWork
+from AutoRBI_Database.database.models import AssignWork
 
 
 # 1. Assign a user to a work
