@@ -32,8 +32,10 @@ from AutoRBI_Database.validation_rules import (
 )
 
 from AutoRBI_Database.validation_rules import EmailRules, get_email_validation_error
-from AutoRBI_Database.exceptions import CurrentPasswordIncorrectError, EmailAlreadyInUseError
-
+from AutoRBI_Database.exceptions import (
+    CurrentPasswordIncorrectError,
+    EmailAlreadyInUseError,
+)
 
 
 # Initialize logger for this module
@@ -536,7 +538,7 @@ def register_engineer(db: Session, username: str, full_name: str, password: str)
         username=username,
         full_name=full_name,
         password=hashed_pw,
-        role="Admin",
+        role="Engineer",
         status="Active",
     )
 
@@ -580,7 +582,7 @@ def register_engineer(db: Session, username: str, full_name: str, password: str)
 
 
 def create_user(
-    db: Session, username: str, full_name: str, password: str, role: str = "Admin"
+    db: Session, username: str, full_name: str, password: str, role: str = "Engineer"
 ):
     """
     Create a new user (Admin or Engineer) with validation and error handling.
@@ -1193,81 +1195,81 @@ def count_active_admins(db: Session) -> int:
 def verify_current_password(db: Session, user_id: int, password: str) -> bool:
     """
     Verify that the provided password matches the user's current password.
-    
+
     Args:
         db: Database session
         user_id: User's ID
         password: Plain text password to verify
-        
+
     Returns:
         True if password matches, False otherwise
     """
     logger.debug(f"Verifying password for user ID: {user_id}")
-    
+
     user = get_user_by_id(db, user_id)
-    
+
     return verify_password(password, user.password)
 
 
 def update_user_profile_data(
-    db: Session,
-    user_id: int,
-    full_name: str = None,
-    email: str = None
+    db: Session, user_id: int, full_name: str = None, email: str = None
 ):
     """
     Update user's profile data (full_name and/or email).
-    
+
     Args:
         db: Database session
         user_id: User's ID
         full_name: New full name (None = don't change)
         email: New email (None = don't change)
-        
+
     Returns:
         Updated User object
-        
+
     Raises:
         UserNotFoundError: If user doesn't exist
         ValidationError: If validation fails
         EmailAlreadyInUseError: If email is taken by another user
     """
     logger.info(f"Updating profile for user ID {user_id}")
-    
+
     # Get the user
     user = get_user_by_id(db, user_id)
-    
+
     # Update full name if provided
     if full_name is not None:
         validate_full_name(full_name)
         user.full_name = full_name.strip()
-    
+
     # Update email if provided
     if email is not None:
         # Validate email format
         email_error = get_email_validation_error(email)
         if email_error:
             raise ValidationError(email_error)
-        
+
         email = email.strip().lower()
-        
+
         # Check if email is already used by another user
-        existing_user = db.query(User).filter(
-            User.email == email,
-            User.user_id != user_id  # Exclude current user
-        ).first()
-        
+        existing_user = (
+            db.query(User)
+            .filter(
+                User.email == email, User.user_id != user_id  # Exclude current user
+            )
+            .first()
+        )
+
         if existing_user:
             raise EmailAlreadyInUseError(f"Email '{email}' is already in use")
-        
+
         user.email = email
-    
+
     try:
         db.commit()
         db.refresh(user)
         logger.info(f"Successfully updated profile for {user.username}")
         return user
-        
+
     except IntegrityError as e:
         db.rollback()
         logger.error(f"Error updating profile: {e}")
@@ -1275,54 +1277,53 @@ def update_user_profile_data(
 
 
 def change_user_password(
-    db: Session,
-    user_id: int,
-    current_password: str,
-    new_password: str
+    db: Session, user_id: int, current_password: str, new_password: str
 ):
     """
     Change user's password after verifying current password.
-    
+
     Args:
         db: Database session
         user_id: User's ID
         current_password: Current password for verification
         new_password: New password to set
-        
+
     Returns:
         Updated User object
-        
+
     Raises:
         UserNotFoundError: If user doesn't exist
         CurrentPasswordIncorrectError: If current password is wrong
         ValidationError: If new password doesn't meet requirements
     """
     logger.info(f"Changing password for user ID {user_id}")
-    
+
     # Get the user
     user = get_user_by_id(db, user_id)
-    
+
     # Verify current password
     if not verify_password(current_password, user.password):
-        logger.warning(f"Password change failed - incorrect current password for user {user.username}")
+        logger.warning(
+            f"Password change failed - incorrect current password for user {user.username}"
+        )
         raise CurrentPasswordIncorrectError()
-    
+
     # Validate new password
     validate_password(new_password)
-    
+
     # Check that new password is different from current
     if verify_password(new_password, user.password):
         raise ValidationError("New password must be different from current password")
-    
+
     # Update password
     user.password = hash_password(new_password)
-    
+
     try:
         db.commit()
         db.refresh(user)
         logger.info(f"Successfully changed password for {user.username}")
         return user
-        
+
     except IntegrityError as e:
         db.rollback()
         logger.error(f"Error changing password: {e}")
