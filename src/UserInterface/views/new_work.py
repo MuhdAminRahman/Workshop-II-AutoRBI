@@ -141,7 +141,8 @@ class NewWorkView:
     def _initialize_converters(self) -> None:
         # PDF Converter
         self.pdf_converter = PDFToImageConverter()
-        work_id = self.controller.current_work.get("id") if self.controller.current_work else None
+        current_work = getattr(self.controller, 'current_work', None)
+        work_id = current_work.get("id") if current_work else None
         if work_id:
             self.state.converted_images_dir = os.path.join(
                 self.project_root, "src", "output_files", work_id, "converted_images"
@@ -203,7 +204,8 @@ class NewWorkView:
         has_permission = True
         
         # Get work and check Excel
-        work_id = self.controller.current_work.get("id") if self.controller.current_work else None
+        current_work = getattr(self.controller, 'current_work', None)
+        work_id = current_work.get("id") if current_work else None
         if work_id and not self.excel_file_info:
             self.check_excel_file(work_id)
         
@@ -517,7 +519,8 @@ class NewWorkView:
     
     def upload_excel_for_work(self) -> None:
         """Upload Excel file for current work"""
-        work_id = self.controller.current_work.get("id") if self.controller.current_work else None
+        current_work = getattr(self.controller, 'current_work', None)
+        work_id = current_work.get("id") if current_work else None
         
         if not work_id:
             messagebox.showwarning("No Work", Messages.NO_WORK)
@@ -563,7 +566,8 @@ class NewWorkView:
         self.file_listbox.delete("1.0", "end")
         
         # Show Excel status
-        work_id = self.controller.current_work.get("id") if self.controller.current_work else None
+        current_work = getattr(self.controller, 'current_work', None)
+        work_id = current_work.get("id") if current_work else None
         if work_id:
             excel_path = self._get_work_excel_path()
             if excel_path:
@@ -1104,7 +1108,8 @@ class NewWorkView:
     def _run_save(self, updated_equipment: dict) -> None:
         """Run save in background thread"""
         try:
-            work_id = self.controller.current_work.get("id") if self.controller.current_work else None
+            current_work = getattr(self.controller, 'current_work', None)
+            work_id = current_work.get("id") if current_work else None
 
             success = self.equipment_service.save_equipment_data(updated_equipment, work_id)
             
@@ -1174,7 +1179,8 @@ class NewWorkView:
     
     def _get_work_excel_path(self) -> Optional[str]:
         """Get Excel path for current work"""
-        work_id = self.controller.current_work.get("id") if self.controller.current_work else None
+        current_work = getattr(self.controller, 'current_work', None)
+        work_id = current_work.get("id") if current_work else None
         if not work_id:
             return None
         
