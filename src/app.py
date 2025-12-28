@@ -60,7 +60,7 @@ class AutoRBIApp(ctk.CTk):
         self.new_work_view = None
         self.report_menu_view = ReportMenuView(self, self)
         self.work_history_view = WorkHistoryView(self, self)
-        self.analytics_view = AnalyticsView(self, self)
+        self.analytics_view = None
         self.settings_view = SettingsView(self, self)
         self.profile_view = ProfileView(self, self)
 
@@ -100,6 +100,9 @@ class AutoRBIApp(ctk.CTk):
 
     def show_analytics(self) -> None:
         """Display the Analytics Dashboard view."""
+        self.available_works = self.getAssignedWorks()
+        self.current_work = self.available_works[0] if self.available_works else None
+        self.analytics_view = AnalyticsView(self, self)
         self.analytics_view.show()
 
     def show_settings(self) -> None:
