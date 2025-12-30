@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 # SIMPLE DIRECT CONNECTION (NO dotenv yet)
-DATABASE_URL = "postgresql+psycopg2://autorbi_user:030707@localhost:5432/autorbi"
+DATABASE_URL = "postgresql+psycopg2://user:password@host/dbname[?key=value..]"
 
 # Create the database engine
 engine = create_engine(DATABASE_URL)
