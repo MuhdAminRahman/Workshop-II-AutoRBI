@@ -247,7 +247,7 @@ class MainMenuView:
         header_section = ctk.CTkFrame(main_frame, fg_color="transparent")
         header_section.grid(row=0, column=0, sticky="ew", padx=24, pady=(18, 6))
         header_section.grid_columnconfigure(0, weight=1)
-        
+
         # Section title
         welcome_label = ctk.CTkLabel(
             header_section,
@@ -255,7 +255,7 @@ class MainMenuView:
             font=("Segoe UI", 24, "bold"),
         )
         welcome_label.grid(row=0, column=0, sticky="w")
-        
+
         # Work History button (top right, green color)
         work_history_btn = ctk.CTkButton(
             header_section,
@@ -297,9 +297,97 @@ class MainMenuView:
 
         # Button configurations (New Work and Report Menu only)
         menu_buttons = [
-            ("📝 New Work", "Create and manage new work items.", self.controller.show_new_work),
-            ("📊 Report Menu", "Generate and review reports.", self.controller.show_report_menu),
+            (
+                "📝 New Work",
+                "Create and manage new work items.",
+                self.controller.show_new_work,
+            ),
+            (
+                "📊 Report Menu",
+                "Generate and review reports.",
+                self.controller.show_report_menu,
+            ),
         ]
+
+        # ================================================================
+        # ADMIN SECTION (Only visible to admins)
+        # ================================================================
+
+        current_user_role = self.controller.current_user.get("role")
+
+        if current_user_role == "Admin":
+            # Add a third row for admin section
+            buttons_frame.grid_rowconfigure(2, weight=1)
+
+            # Admin section separator
+            admin_separator = ctk.CTkFrame(
+                buttons_frame,
+                height=2,
+                fg_color=("gray80", "gray30"),
+            )
+            admin_separator.grid(
+                row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=(20, 10)
+            )
+
+            # Admin label
+            admin_label = ctk.CTkLabel(
+                buttons_frame,
+                text="Administration",
+                font=("Segoe UI", 12, "bold"),
+                text_color=("gray50", "gray70"),
+            )
+            admin_label.grid(row=3, column=0, sticky="w", padx=14, pady=(0, 5))
+
+            # Admin card row
+            buttons_frame.grid_rowconfigure(4, weight=1)
+
+            # User Management card
+            admin_card = ctk.CTkFrame(
+                buttons_frame,
+                corner_radius=16,
+                border_width=1,
+                border_color=("#3498db", "#2980b9"),  # Blue border for admin card
+            )
+            admin_card.grid(
+                row=4,
+                column=0,
+                padx=10,
+                pady=10,
+                sticky="nsew",
+            )
+
+            admin_card.grid_rowconfigure(1, weight=1)
+            admin_card.grid_columnconfigure(0, weight=1)
+
+            admin_title_lbl = ctk.CTkLabel(
+                admin_card,
+                text="👥 User Management",
+                font=("Segoe UI", 15, "bold"),
+                anchor="w",
+            )
+            admin_title_lbl.grid(row=0, column=0, sticky="w", padx=18, pady=(14, 4))
+
+            admin_desc_lbl = ctk.CTkLabel(
+                admin_card,
+                text="Manage user accounts, roles, and access permissions.",
+                font=("Segoe UI", 11),
+                text_color=("gray25", "gray80"),
+                anchor="w",
+                justify="left",
+                wraplength=260,
+            )
+            admin_desc_lbl.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 10))
+
+            admin_action_btn = ctk.CTkButton(
+                admin_card,
+                text="Manage Users",
+                command=self.controller.show_user_management,
+                height=32,
+                font=("Segoe UI", 10, "bold"),
+                fg_color=("#3498db", "#2980b9"),  # Blue button for admin
+                hover_color=("#2980b9", "#1f5f89"),
+            )
+            admin_action_btn.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 16))
 
         # Create "cards" with button and description
         for idx, (title, description, command) in enumerate(menu_buttons):
@@ -384,7 +472,7 @@ class MainMenuView:
 
         # ========== TODO: BACKEND INTEGRATION REQUIRED ==========
         # TODO: Backend Developer - Replace placeholder data with actual database queries
-        # 
+        #
         # 1. Work Completion Calculation:
         #    - Query: Count total works from Work table
         #    - Query: Count completed works (status = 'completed' or similar)
@@ -404,7 +492,7 @@ class MainMenuView:
         #
         # Current Implementation: Using placeholder/mock data
         # ========================================================
-        
+
         # Placeholder data for demonstration (REMOVE WHEN BACKEND IS IMPLEMENTED)
         work_completion = 75  # % of work completed/total work
         equipment_extracted = 45  # number extracted
@@ -429,11 +517,15 @@ class MainMenuView:
             title="Work Completion",
             value=f"{work_completion}%",
             subtitle=f"{work_completion} of 100 tasks",
-            color=("#3498db", "#2980b9")
+            color=("#3498db", "#2980b9"),
         )
 
         # Metric 2: Equipment Extracted
-        extraction_percent = int((equipment_extracted / total_equipment) * 100) if total_equipment > 0 else 0
+        extraction_percent = (
+            int((equipment_extracted / total_equipment) * 100)
+            if total_equipment > 0
+            else 0
+        )
         self._create_circular_metric(
             metrics_container,
             column=1,
@@ -441,7 +533,7 @@ class MainMenuView:
             title="Equipment Extracted",
             value=f"{equipment_extracted}/{total_equipment}",
             subtitle=f"{extraction_percent}% complete",
-            color=("#9b59b6", "#8e44ad")
+            color=("#9b59b6", "#8e44ad"),
         )
 
         # Metric 3: Average Health Score
@@ -449,11 +541,15 @@ class MainMenuView:
         self._create_circular_metric(
             metrics_container,
             column=2,
-            icon="💚" if avg_health_score >= 80 else "💛" if avg_health_score >= 60 else "❤️",
+            icon=(
+                "💚"
+                if avg_health_score >= 80
+                else "💛" if avg_health_score >= 60 else "❤️"
+            ),
             title="Avg Health Score",
             value=f"{avg_health_score}/100",
             subtitle=self._get_health_status(avg_health_score),
-            color=health_color
+            color=health_color,
         )
 
         # Analytics button at bottom left
@@ -469,14 +565,22 @@ class MainMenuView:
         )
         view_analytics_btn.grid(row=2, column=0, sticky="w", padx=18, pady=(0, 16))
 
-    def _create_circular_metric(self, parent, column: int, icon: str, title: str, 
-                                value: str, subtitle: str, color: tuple):
+    def _create_circular_metric(
+        self,
+        parent,
+        column: int,
+        icon: str,
+        title: str,
+        value: str,
+        subtitle: str,
+        color: tuple,
+    ):
         """Create a circular metric card with icon and values."""
         # TODO: Backend - Future Enhancement: Implement circular progress ring visualization
         # TODO: Backend - Add animated progress ring around the icon
         # TODO: Backend - Progress ring should fill based on percentage value
         # TODO: Backend - Use libraries like matplotlib or custom canvas drawing for progress ring
-        
+
         metric_card = ctk.CTkFrame(
             parent,
             corner_radius=12,
@@ -555,84 +659,6 @@ class MainMenuView:
             return "Good"
         else:
             return "Needs Attention"
-
-        # ================================================================
-        # ADMIN SECTION (Only visible to admins)
-        # ================================================================
-        
-        current_user_role = self.controller.current_user.get("role")
-        
-        if current_user_role == "Admin":
-            # Add a third row for admin section
-            buttons_frame.grid_rowconfigure(2, weight=1)
-            
-            # Admin section separator
-            admin_separator = ctk.CTkFrame(
-                buttons_frame,
-                height=2,
-                fg_color=("gray80", "gray30"),
-            )
-            admin_separator.grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=(20, 10))
-            
-            # Admin label
-            admin_label = ctk.CTkLabel(
-                buttons_frame,
-                text="Administration",
-                font=("Segoe UI", 12, "bold"),
-                text_color=("gray50", "gray70"),
-            )
-            admin_label.grid(row=3, column=0, sticky="w", padx=14, pady=(0, 5))
-            
-            # Admin card row
-            buttons_frame.grid_rowconfigure(4, weight=1)
-            
-            # User Management card
-            admin_card = ctk.CTkFrame(
-                buttons_frame,
-                corner_radius=16,
-                border_width=1,
-                border_color=("#3498db", "#2980b9"),  # Blue border for admin card
-            )
-            admin_card.grid(
-                row=4,
-                column=0,
-                padx=10,
-                pady=10,
-                sticky="nsew",
-            )
-
-            admin_card.grid_rowconfigure(1, weight=1)
-            admin_card.grid_columnconfigure(0, weight=1)
-
-            admin_title_lbl = ctk.CTkLabel(
-                admin_card,
-                text="👥 User Management",
-                font=("Segoe UI", 15, "bold"),
-                anchor="w",
-            )
-            admin_title_lbl.grid(row=0, column=0, sticky="w", padx=18, pady=(14, 4))
-
-            admin_desc_lbl = ctk.CTkLabel(
-                admin_card,
-                text="Manage user accounts, roles, and access permissions.",
-                font=("Segoe UI", 11),
-                text_color=("gray25", "gray80"),
-                anchor="w",
-                justify="left",
-                wraplength=260,
-            )
-            admin_desc_lbl.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 10))
-
-            admin_action_btn = ctk.CTkButton(
-                admin_card,
-                text="Manage Users",
-                command=self.controller.show_user_management,
-                height=32,
-                font=("Segoe UI", 10, "bold"),
-                fg_color=("#3498db", "#2980b9"),  # Blue button for admin
-                hover_color=("#2980b9", "#1f5f89"),
-            )
-            admin_action_btn.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 16))
 
     def _toggle_profile_dropdown(self) -> None:
         """Toggle profile dropdown menu."""

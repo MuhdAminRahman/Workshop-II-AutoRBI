@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, Enum, text
 from datetime import datetime
-from AutoRBI_Database.database.base import Base
+from database.base import Base
 
 
 class User(Base):

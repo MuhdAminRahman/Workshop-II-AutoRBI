@@ -7,11 +7,3 @@ __all__ = [
     "Base",
 ]
 
-
-
-__all__ = [
-    "SessionLocal",
-    "Base",
-]
-
-

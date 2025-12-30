@@ -442,17 +442,7 @@ class AutoRBIApp(ctk.CTk):
         finally:
             db.close()
 
-    def show_user_management(self) -> None:
-        """Display the User Management view (admin only)."""
-        # Check if user is admin
-        if self.current_user.get("role") != "Admin":
-            messagebox.showerror(
-                "Access Denied", "Only administrators can access User Management."
-            )
-            return
-
-        # Show the view
-        self.user_management_view.show()
+    
 
     # ========================================================================
     # PROFILE METHODS
@@ -644,6 +634,18 @@ class AutoRBIApp(ctk.CTk):
     def update_loading_progress(self, value: float, message: str = None) -> None:
         """Update loading progress (0.0 to 1.0)."""
         self.loading_overlay.update_progress(value, message)
+        
+    def show_user_management(self) -> None:
+        """Display the User Management view (admin only)."""
+        # Check if user is admin
+        if self.current_user.get("role") != "Admin":
+            messagebox.showerror(
+                "Access Denied", "Only administrators can access User Management."
+            )
+            return
+
+        # Show the view
+        self.user_management_view.show()
 
     # ------------------------------------------------------------------ #
     # New Work Methods
