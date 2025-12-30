@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, ForeignKey, DateTime
 from datetime import datetime
-from AutoRBI_Database.database.base import Base
+from database import Base
+
 
 class AssignWork(Base):
     __tablename__ = "assign_work"
@@ -16,5 +17,4 @@ class AssignWork(Base):
         return (
             f"AssignWork(id={self.assignment_id}, user_id={self.user_id}, "
             f"work_id={self.work_id}, assigned_at='{self.assigned_at}')"
-    )
-
+        )

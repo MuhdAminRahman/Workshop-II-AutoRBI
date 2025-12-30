@@ -10,7 +10,7 @@ from database.models import (
     Component,
     AssignWork,
     CorrectionLog,
-    WorkHistory
+    WorkHistory,
 )
 
 print("Creating tables...")
