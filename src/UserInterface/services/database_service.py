@@ -572,205 +572,115 @@ class DatabaseService:
         """
         Calculate average health score for all equipment across user's assigned works.
         
-        Health score factors (0-100 scale):
-        1. Equipment basic info completion (30%)
-        2. Component data completion (50%)
-        3. Data extraction status (20%)
+        Uses the same RBI health calculation as analytics.py:
+        Health Score = (Extraction Rate × 0.4) + (Completeness Rate × 0.4) + (Quality Score × 0.2)
+        
+        Where:
+        - Extraction Rate: Percentage of equipment with extracted_date set
+        - Completeness Rate: Percentage of critical fields filled (fluid, material_spec, design_temp, design_pressure)
+        - Quality Score: 20 points base, minus 2 points per correction (max penalty 20)
         
         Returns:
             float: Average health score (0-100)
         """
         try:
             from AutoRBI_Database.database.models.assign_work import AssignWork
+            from AutoRBI_Database.database.models.work import Work
             
-            # Get all equipment for user's assigned works
-            assigned_work_ids = db.query(AssignWork.work_id).filter(
+            # Get all works assigned to the user
+            works = db.query(Work).join(
+                AssignWork, Work.work_id == AssignWork.work_id
+            ).filter(
                 AssignWork.user_id == user_id
             ).all()
             
-            if not assigned_work_ids:
-                return 0.0
-            
-            assigned_work_ids = [wid[0] for wid in assigned_work_ids]
-            
-            # Get all equipment for these works
-            all_equipment = db.query(DBEquipment).filter(
-                DBEquipment.work_id.in_(assigned_work_ids)
-            ).all()
-            
-            if not all_equipment:
+            if not works:
                 return 0.0
             
             total_health_score = 0
-            equipment_count = 0
+            work_count = 0
             
-            for equipment in all_equipment:
-                equipment_health = DatabaseService._calculate_equipment_health_score(db, equipment)
-                total_health_score += equipment_health
-                equipment_count += 1
+            # Calculate health score for each work
+            for work in works:
+                work_health = DatabaseService._calculate_work_health_score(db, work.work_id)
+                total_health_score += work_health
+                work_count += 1
             
-            if equipment_count == 0:
+            if work_count == 0:
                 return 0.0
             
-            average_health = total_health_score / equipment_count
-            return round(average_health, 2)
+            average_health = total_health_score / work_count
+            return round(average_health, 1)
             
         except Exception as e:
             print(f"Error calculating average health score: {e}")
             return 0.0
-        
-    @staticmethod
-    def _calculate_equipment_health_score(
-        db: Session,
-        equipment: DBEquipment
-    ) -> float:
-        """
-        Calculate health score for a single equipment.
-        
-        Scoring breakdown:
-        1. Equipment basic info (max 30 points):
-        - pmt_no: 10 points
-        - description: 10 points
-        - drawing_path: 5 points
-        - extracted_date: 5 points
-        
-        2. Component data (max 50 points):
-        - Has components: 10 points
-        - Each component's data completeness: 40 points
-        
-        3. Data quality bonus (max 20 points):
-        - All mandatory fields filled: 10 points
-        - No obvious data errors: 10 points
-        """
-        health_score = 0
-        
-        # 1. Equipment basic info (30 points)
-        if equipment.pmt_no and str(equipment.pmt_no).strip():
-            health_score += 10
-        if equipment.description and str(equipment.description).strip():
-            health_score += 10
-        if equipment.drawing_path and str(equipment.drawing_path).strip():
-            health_score += 5
-        if equipment.extracted_date:
-            health_score += 5
-        
-        # 2. Component data (50 points)
-        components = db.query(DBComponent).filter(
-            DBComponent.equipment_id == equipment.equipment_id
-        ).all()
-        
-        if components:
-            # Bonus for having components
-            health_score += 10
-            
-            # Calculate component completeness
-            component_scores = []
-            for component in components:
-                component_score = DatabaseService._calculate_component_health_score(component)
-                component_scores.append(component_score)
-            
-            if component_scores:
-                avg_component_score = sum(component_scores) / len(component_scores)
-                # Scale to 40 points
-                health_score += (avg_component_score / 100) * 40
-        
-        # 3. Data quality bonus (20 points)
-        # Check if all mandatory fields are filled
-        mandatory_equipment_filled = (
-            equipment.pmt_no and str(equipment.pmt_no).strip() and
-            equipment.description and str(equipment.description).strip()
-        )
-        
-        if mandatory_equipment_filled:
-            health_score += 10
-        
-        # Check for obvious data errors (simple heuristics)
-        has_errors = DatabaseService._check_for_data_errors(equipment, components)
-        if not has_errors:
-            health_score += 10
-        
-        # Ensure score doesn't exceed 100
-        return min(health_score, 100.0)
     
     @staticmethod
-    def _calculate_component_health_score(component: DBComponent) -> float:
+    def _calculate_work_health_score(db: Session, work_id: int) -> float:
         """
-        Calculate health score for a single component (0-100).
+        Calculate health score for a single work using RBI assessment factors.
+        
+        Health Score = (Extraction Rate × 0.4) + (Completeness Rate × 0.4) + (Quality Score × 0.2)
+        
+        Returns:
+            float: Health score (0-100)
         """
-        score = 0
-        total_possible = 0
-        
-        # Define fields and their weights
-        fields = [
-            ('part_name', 2.0),
-            ('phase', 1.0),
-            ('fluid', 1.0),
-            ('material_spec', 1.5),
-            ('material_grade', 1.0),
-            ('insulation', 1.0),
-            ('design_temp', 1.0),
-            ('design_pressure', 1.0),
-            ('operating_temp', 1.0),
-            ('operating_pressure', 1.0)
-        ]
-        
-        for field_name, weight in fields:
-            total_possible += weight
-            field_value = getattr(component, field_name, None)
-            if field_value and str(field_value).strip():
-                score += weight
-        
-        if total_possible == 0:
+        try:
+            # Get all equipment for this work
+            total_eq = db.query(DBEquipment).filter(
+                DBEquipment.work_id == work_id
+            ).count()
+            
+            if total_eq == 0:
+                return 0.0
+            
+            # 1. Calculate extraction rate
+            extracted_eq = db.query(DBEquipment).filter(
+                DBEquipment.work_id == work_id,
+                DBEquipment.extracted_date.isnot(None)
+            ).count()
+            
+            extraction_rate = (extracted_eq / total_eq * 100) if total_eq > 0 else 0
+            
+            # 2. Calculate completeness rate for critical fields
+            critical_fields = ['fluid', 'material_spec', 'design_temp', 'design_pressure']
+            
+            all_components = db.query(DBComponent).join(DBEquipment).filter(
+                DBEquipment.work_id == work_id
+            ).all()
+            
+            if not all_components:
+                # No components means incomplete data
+                completeness_rate = 0.0
+            else:
+                filled_critical = sum(
+                    1 for comp in all_components
+                    for field in critical_fields
+                    if getattr(comp, field)
+                )
+                
+                total_critical = len(all_components) * len(critical_fields)
+                completeness_rate = (filled_critical / total_critical * 100) if total_critical > 0 else 0
+            
+            # 3. Calculate quality score (data corrections penalty)
+            correction_count = db.query(CorrectionLog).join(DBEquipment).filter(
+                DBEquipment.work_id == work_id
+            ).count()
+            
+            # Quality base is 20 points, minus 2 per correction (max penalty is 20)
+            correction_penalty = min(20, correction_count * 2)
+            quality_score = 20 - correction_penalty
+            
+            # 4. Calculate final health score
+            health_score = (
+                (extraction_rate * 0.4) +
+                (completeness_rate * 0.4) +
+                quality_score
+            )
+            
+            return round(health_score, 1)
+            
+        except Exception as e:
+            print(f"Error calculating health score for work {work_id}: {e}")
             return 0.0
-        
-        return (score / total_possible) * 100
-    
-    @staticmethod
-    def _check_for_data_errors(
-        equipment: DBEquipment,
-        components: List[DBComponent]
-    ) -> bool:
-        """
-        Check for obvious data errors.
-        Returns True if errors found, False otherwise.
-        """
-        # Check equipment errors
-        if equipment.pmt_no and len(equipment.pmt_no.strip()) < 2:
-            return True
-        
-        if equipment.description and len(equipment.description.strip()) < 5:
-            return True
-        
-        # Check component errors
-        for component in components:
-            # Check temperature values (simple validation)
-            if component.design_temp:
-                try:
-                    # Try to extract number from string (e.g., "100°C" -> 100)
-                    temp_str = component.design_temp.strip()
-                    # Remove non-numeric characters except decimal point and minus
-                    import re
-                    clean_temp = re.sub(r'[^\d\.\-]', '', temp_str)
-                    if clean_temp:
-                        temp_value = float(clean_temp)
-                        # Check if temperature is within reasonable range
-                        if abs(temp_value) > 1000:  # Extreme temperature
-                            return True
-                except:
-                    # If can't parse, might be invalid
-                    pass
-            
-            # Check pressure values
-            if component.design_pressure:
-                try:
-                    press_str = component.design_pressure.strip()
-                    import re
-                    clean_press = re.sub(r'[^\d\.\-]', '', press_str)
-                    if clean_press:
-                        press_value = float(clean_press)
-                        if press_value < 0 or press_value > 10000:  # Unreasonable pressure
-                            return True
-                except:
-                    pass
-        
-        return False
