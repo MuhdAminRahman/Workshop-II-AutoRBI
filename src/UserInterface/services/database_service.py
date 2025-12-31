@@ -279,6 +279,28 @@ class DatabaseService:
         return success_count, failure_count
     
     @staticmethod
+    def update_equipment_data(db, equipment_id: int, equipment):
+        """Update equipment data in database with corrected values"""
+        # This is a simplified example - adjust based on your schema
+        from AutoRBI_Database.database.models import Equipment as DBEquipment
+        
+        db_equipment = db.query(DBEquipment).filter(DBEquipment.equipment_id == equipment_id).first()
+        if db_equipment:
+            # Update fields based on your schema
+            # You'll need to map the equipment object to your database model
+            # Example:
+            db_equipment.equipment_number = equipment.equipment_number
+            db_equipment.pmt_number = equipment.pmt_number
+            db_equipment.equipment_description = equipment.equipment_description
+            
+            # Update component data if your schema supports it
+            # This part depends on your database structure
+            
+            db.commit()
+            return True
+        return False
+
+    @staticmethod
     def get_equipment_id_by_equipment_number(
         db: Session,
         work_id: int,

@@ -81,7 +81,7 @@ class EquipmentService:
             if component.component_name == component_name:
                 # Check each field for changes
                 fields_to_check = [
-                    'fluid', 'type', 'spec', 'grade', 'insulation',
+                    'fluid', 'material_type', 'spec', 'grade', 'insulation',
                     'design_temp', 'design_pressure', 
                     'operating_temp', 'operating_pressure'
                 ]

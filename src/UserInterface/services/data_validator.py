@@ -22,7 +22,7 @@ class DataValidator:
         'equipment_no',
         'parts',
         'fluid',
-        'type',
+        'material_type',
         'spec',
         'grade'
     ]
@@ -64,7 +64,7 @@ class DataValidator:
                     'equipment_no': row_entries[1].get().strip(),
                     'parts': row_entries[4].get().strip(),
                     'fluid': row_entries[6].get().strip(),
-                    'type': row_entries[7].get().strip(),
+                    'material_type': row_entries[7].get().strip(),
                     'spec': row_entries[8].get().strip(),
                     'grade': row_entries[9].get().strip(),
                 }
@@ -121,7 +121,7 @@ class DataValidator:
                     1: 'equipment_no',
                     4: 'parts',
                     6: 'fluid',
-                    7: 'type',
+                    7: 'material_type',
                     8: 'spec',
                     9: 'grade',
                 }
