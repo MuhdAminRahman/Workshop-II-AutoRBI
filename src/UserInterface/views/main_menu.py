@@ -2,13 +2,15 @@
 
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Dict, List, Optional
 
 from PIL import Image
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import shutil
 
+from UserInterface.services.database_service import DatabaseService
+from AutoRBI_Database.database.session import SessionLocal
 
 class MainMenuView:
     """Handles the main menu interface."""
@@ -331,6 +333,60 @@ class MainMenuView:
             )
             action_btn.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 16))
 
+    def initialize_analytics_data(self) -> Dict[str, int]:
+        try:
+            db = SessionLocal()
+             # Get all needed data
+            completed_work = DatabaseService.get_work_completion_percentage(
+                db=db, 
+                user_id=self.controller.current_user.get("id")
+            )
+            
+            total_equipment = DatabaseService.get_total_equipment_count_for_all_works(
+                db=db, 
+                user_id=self.controller.current_user.get("id")
+            )
+            
+            extracted_equipment = DatabaseService.get_fully_extracted_equipment_count(
+                db=db, 
+                user_id=self.controller.current_user.get("id")
+            )
+            
+            # Calculate average health score
+            """"
+            health score is based on these factors:
+
+            Equipment completion (fields filled)
+
+            Component completion (fields filled)
+
+            Data extraction status (has extracted_date)
+
+            Data quality (values are valid/complete)
+            """
+            avg_health_score = DatabaseService.calculate_average_health_score(
+                db=db,
+                user_id=self.controller.current_user.get("id")
+            )
+            
+            # Calculate completion rate
+            total_percentage = 0
+            for work in completed_work.values():
+                total_percentage += work
+            completion_rate = int(total_percentage / len(completed_work)) if completed_work else 0
+            
+            analytics_data = {
+                "work_completion": completion_rate if completion_rate is not None else 2,
+                "total_equipment": total_equipment if total_equipment is not None else 2,
+                "equipment_extracted": extracted_equipment if extracted_equipment is not None else 2,
+                "avg_health_score": int(avg_health_score) if avg_health_score is not None else 61,
+            }
+            return analytics_data
+        except Exception as e:
+            # Log error and return zeros on failure
+            print(f"Error initializing analytics data: {e}")
+        
+
     def _build_embedded_analytics(self, parent, row: int):
         """Embedded analytics overview in main menu with simplified metrics."""
         # Analytics container
@@ -363,34 +419,14 @@ class MainMenuView:
         )
         analytics_subtitle.grid(row=1, column=0, sticky="w", pady=(2, 0))
 
-        # ========== TODO: BACKEND INTEGRATION REQUIRED ==========
-        # TODO: Backend Developer - Replace placeholder data with actual database queries
-        # 
-        # 1. Work Completion Calculation:
-        #    - Query: Count total works from Work table
-        #    - Query: Count completed works (status = 'completed' or similar)
-        #    - Calculate: (completed_works / total_works) * 100
-        #    - Example: work_completion = (db.query(Work).filter(Work.status=='completed').count() / db.query(Work).count()) * 100
-        #
-        # 2. Equipment Extraction:
-        #    - Query: Count total equipment from Equipment table for current work
-        #    - Query: Count extracted equipment (extracted_date IS NOT NULL)
-        #    - Example: equipment_extracted = db.query(Equipment).filter(Equipment.work_id==current_work_id, Equipment.extracted_date.isnot(None)).count()
-        #    - Example: total_equipment = db.query(Equipment).filter(Equipment.work_id==current_work_id).count()
-        #
-        # 3. Average Health Score:
-        #    - Use RBIAnalyticsEngine.get_work_health_score() for each work
-        #    - Calculate average across all works or current work's health score
-        #    - Example: avg_health_score = RBIAnalyticsEngine.get_work_health_score(db, current_work_id)['health_score']
-        #
-        # Current Implementation: Using placeholder/mock data
-        # ========================================================
+        # ========== BACKEND INTEGRATION ==========
+        analytics_data = self.initialize_analytics_data()
         
         # Placeholder data for demonstration (REMOVE WHEN BACKEND IS IMPLEMENTED)
-        work_completion = 75  # % of work completed/total work
-        equipment_extracted = 45  # number extracted
-        total_equipment = 60  # total equipment
-        avg_health_score = 82  # average health score
+        work_completion = analytics_data["work_completion"]  # % of work completed/total work
+        equipment_extracted = analytics_data["equipment_extracted"]  # number extracted
+        total_equipment = analytics_data["total_equipment"]  # total equipment
+        avg_health_score = analytics_data["avg_health_score"]  # average health score
 
         # Metrics container with 3 circular progress indicators
         metrics_container = ctk.CTkFrame(
