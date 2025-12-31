@@ -419,6 +419,15 @@ class Page2Builder(PageBuilderBase):
         self.view.files_edit_container.grid(row=2, column=0, sticky="nsew", pady=(0, 12))
         self.view.files_edit_container.grid_columnconfigure(0, weight=1)
         self.view.files_edit_container.grid_rowconfigure(0, weight=1)
+        
+        # Initialize with "No data" message
+        no_data_label = ctk.CTkLabel(
+            self.view.files_edit_container,
+            text="No data available. Please go back to Step 1 and extract data first.",
+            font=Fonts.SUBTITLE,
+            text_color=("gray50", "gray70"),
+        )
+        no_data_label.pack(pady=40)
     
     def _build_action_buttons(self, parent: ctk.CTkFrame, row: int):
         """Build action buttons"""
