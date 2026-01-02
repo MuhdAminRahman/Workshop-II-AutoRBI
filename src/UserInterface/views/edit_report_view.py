@@ -58,7 +58,7 @@ class EditReportView:
         
         if not edit_context:
             messagebox.showerror("Error", "No report selected for editing.")
-            if hasattr(self.controller, 'show_report_menu'):
+            if hasattr(self.controller, 'show'):
                 self.controller.show()
             return
         
@@ -80,8 +80,8 @@ class EditReportView:
         
         if not self.work_name or not file_path:
             messagebox.showerror("Error", "Invalid report context.")
-            if hasattr(self.controller, 'show_report_menu'):
-                self.controller.show_report_menu()
+            if hasattr(self.controller, 'show'):
+                self.controller.show()
             return
         
         # Handle different file types
@@ -96,7 +96,7 @@ class EditReportView:
         try:
             if not os.path.exists(file_path):
                 messagebox.showerror("File Not Found", f"File does not exist:\n{file_path}")
-                self.controller.show_report_menu()
+                self.controller.show()
                 return
             
             # Log action to database
@@ -123,11 +123,11 @@ class EditReportView:
                 "Edit the file as needed and save your changes.\n"
                 "Then return to the Report Menu."
             )
-            self.controller.show_report_menu()
+            self.controller.show()
             
         except Exception as e:
             messagebox.showerror("Error", f"Could not open PowerPoint file:\n{e}")
-            self.controller.show_report_menu()
+            self.controller.show()
 
     def _load_equipment_data(self) -> None:
         """Load equipment data from Excel file."""
@@ -137,7 +137,7 @@ class EditReportView:
             
             if not self.equipment_map:
                 messagebox.showerror("Error", "Failed to load equipment data from Excel.")
-                self.controller.show_report_menu()
+                self.controller.show()
                 return
             
             # Prepare data for Treeview
@@ -607,7 +607,7 @@ class EditReportView:
                 f"You can now view the new version in the Report Menu."
             )
             
-            self.controller.show_report_menu()
+            self.controller.show()
             
         except Exception as e:
             progress_window.close()
@@ -807,7 +807,7 @@ class EditReportView:
         )
         
         if response:
-            self.controller.show_report_menu()
+            self.controller.show()
 
     def _create_progress_window(self):
         """Create a progress window for save operations."""

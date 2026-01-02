@@ -17,7 +17,7 @@ class ExcelManager:
         self.wb = None
         self._is_loaded = False
         self.equipment_map: Dict[str, Equipment] = {}
-        self.default_path = "src\\output_files"
+        self.default_path = "src/output_files"
         self.log_callback = log_callback
         self.basefilename = None
     
@@ -225,13 +225,13 @@ class ExcelManager:
                 os.makedirs(os.path.join(self.default_path, "default", "excel"), exist_ok=True)
                 base, ext = os.path.splitext(self.file_path)
                 path, base_name = os.path.split(base)
-                path = "default\\excel"
+                path = "default/excel"
                 output_path = os.path.join(self.default_path,path, f"{base_name}_modified{ext}")
             else:
                 os.makedirs(os.path.join(self.default_path, f"user_{work_id}", "excel"), exist_ok=True)
                 base, ext = os.path.splitext(self.file_path)
                 path, base_name = os.path.split(base)
-                path = f"{work_id}\\excel"
+                path = f"{work_id}/excel"
                 output_path = os.path.join(self.default_path, path, f"{work_id}_{base_name}_modified{ext}")
             # Save the workbook
             self.wb.save(output_path)
@@ -287,13 +287,13 @@ class ExcelManager:
                 os.makedirs(os.path.join(self.default_path, "default", "excel"), exist_ok=True)
                 base, ext = os.path.splitext(self.file_path)
                 path, base_name = os.path.split(base)
-                path = "default\\excel"
+                path = "default/excel"
                 output_path = os.path.join(self.default_path, path, f"{base_name}_modified{ext}")
             else:
                 os.makedirs(os.path.join(self.default_path, f"{user_id}", "excel", "updated"), exist_ok=True)
                 base, ext = os.path.splitext(self.file_path)
                 path, base_name = os.path.split(base)
-                path = f"{user_id}\\excel\\updated"
+                path = f"{user_id}/excel/updated"
                 name_with_timestamp = self.add_timestamp(base_name.strip())
                 output_path = os.path.join(self.default_path, path, f"{name_with_timestamp}{ext}")
             
