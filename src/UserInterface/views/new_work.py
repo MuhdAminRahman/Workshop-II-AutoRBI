@@ -618,65 +618,93 @@ class NewWorkView:
             # Mark complete
             self.state.extraction_complete = True
             self.is_extracting = False
+            
             # DATABASE INTEGRATION: Save extracted equipment to database
-            db = SessionLocal()
-            try:
-                work_id = int(self.controller.current_work.get("work_id"))
-                user_id = self.controller.current_user.get("id")
+            total_equipment = len(self.state.converted_files)  # Total equipment to process
+            
+            if total_equipment > 0:  # Only proceed if there are equipment files
+                db = SessionLocal()
+                try:
+                    work_id = int(self.controller.current_work.get("work_id"))
+                    user_id = self.controller.current_user.get("id")
 
-                # Build drawing paths dictionary
-                drawing_paths = {}
-                for file_path in self.state.converted_files:
-                    equipment_number = get_equipment_number_from_image_path(file_path)
-                    drawing_paths[equipment_number] = file_path
+                    # Build drawing paths dictionary
+                    drawing_paths = {}
+                    for file_path in self.state.converted_files:
+                        equipment_number = get_equipment_number_from_image_path(file_path)
+                        drawing_paths[equipment_number] = file_path
 
-                # Batch save equipment
-                success, failures = DatabaseService.batch_save_equipment(
-                    db, work_id, user_id, updated_map, drawing_paths
-                )
+                    # Filter only extracted equipment (those with updated data)
+                    extracted_map = {k: v for k, v in updated_map.items() if k in self.state.converted_files}
+                    extracted_count = len(extracted_map)
 
-                self.log_callback(f"💾 Saved {success} equipment to database")
-                if failures > 0:
-                    self.log_callback(f"⚠️ Failed to save {failures} equipment")
+                    # Batch save equipment (only those successfully extracted)
+                    if extracted_count > 0:
+                        success, failures = DatabaseService.batch_save_equipment(
+                            db, work_id, user_id, extracted_map, drawing_paths
+                        )
 
-                DatabaseService.log_work_history(
-                    db,
-                    work_id,
-                    user_id,
-                    action_type="extract",
-                    description=f"Extracted {success} equipment items",
-                )
-                # Log extraction action
-                for equipment in updated_map.values():
-                    equipment_id = DatabaseService.get_equipment_id_by_equipment_number(
-                        db, work_id, equipment.equipment_number
-                    )
-                    DatabaseService.log_work_history(
-                        db,
-                        work_id,
-                        user_id,
-                        action_type="extract_equipment",
-                        equipment_id=equipment_id if equipment_id else None,
-                        description=f"Extracted data for equipment {equipment.equipment_number}",
-                    )
+                        self.log_callback(
+                            f"💾 Saved {success}/{extracted_count} extracted equipment to database "
+                            f"({extracted_count}/{total_equipment} equipment extracted)"
+                        )
+                        if failures > 0:
+                            self.log_callback(f"⚠️ Failed to save {failures} equipment")
 
-            except Exception as e:
-                self.log_callback(f"⚠️ Database save error: {e}")
-            finally:
-                db.close()
+                        # Log extraction action to work history
+                        DatabaseService.log_work_history(
+                            db,
+                            work_id,
+                            user_id,
+                            action_type="extract",
+                            description=f"Extracted {extracted_count}/{total_equipment} equipment items ({success} saved successfully)",
+                        )
+                        
+                        # Log individual equipment extraction (only for successfully saved items)
+                        for equipment in extracted_map.values():
+                            equipment_id = DatabaseService.get_equipment_id_by_equipment_number(
+                                db, work_id, equipment.equipment_number
+                            )
+                            if equipment_id:  # Only log if equipment was saved
+                                DatabaseService.log_work_history(
+                                    db,
+                                    work_id,
+                                    user_id,
+                                    action_type="extract_equipment",
+                                    equipment_id=equipment_id,
+                                    description=f"Extracted data for equipment {equipment.equipment_number}",
+                                )
+                    else:
+                        self.log_callback(f"⚠️ No equipment data extracted from {total_equipment} files")
+
+                except Exception as e:
+                    self.log_callback(f"⚠️ Database save error: {e}")
+                finally:
+                    db.close()
+            else:
+                self.log_callback("ℹ️ No equipment files to process")
+            
             # Update UI state
             self.parent.after(0, self.update_ui_state)
 
             # Show notification
             if hasattr(self.controller, "show_notification"):
-                total = len(self.state.selected_files)
+                total_files = len(self.state.selected_files)
+                extracted_count = len([k for k in updated_map.keys() if k in self.state.converted_files])
+                
+                if extracted_count > 0:
+                    message = f"Successfully extracted {extracted_count}/{total_equipment} equipment from {total_files} file(s)!"
+                    msg_type = "success"
+                elif total_equipment > 0:
+                    message = f"Processed {total_equipment} equipment file(s) but no data was extracted"
+                    msg_type = "warning"
+                else:
+                    message = f"Processed {total_files} file(s)"
+                    msg_type = "info"
+                
                 self.parent.after(
                     100,
-                    lambda: self.controller.show_notification(
-                        f"Successfully extracted data from {total} file(s)!",
-                        "success",
-                        5000,
-                    ),
+                    lambda: self.controller.show_notification(message, msg_type, 5000),
                 )
 
         except Exception as e:
@@ -961,132 +989,184 @@ class NewWorkView:
         
         # Get all equipment directly from the table manager
         equipment_dict = self.data_table_manager.get_all_equipment()
-        print(f"DEBUG: Collected {len(equipment_dict)} equipment items")
+        print(f"DEBUG: Collected {len(self.state.converted_files)} equipment items")
         
         # Debug output
-        for equipment_no, equipment in equipment_dict.items():
-            print(f"\nEquipment: {equipment_no}")
-            print(f"  PMT: {equipment.pmt_number}")
-            print(f"  Description: {equipment.equipment_description}")
-            print(f"  Components: {len(equipment.components)}")
-            
-            for component in equipment.components:
-                print(f"    Component: {component.component_name}")
-                print(f"      Phase: {component.phase}")
-                print(f"      Data: {component.existing_data}")
-        
-        print(f"\nDEBUG: Total equipment: {len(equipment_dict)}")
+        equipment_to_debug = set()
+        for file_path in self.state.converted_files:
+            eq_no = get_equipment_number_from_image_path(file_path)
+            equipment_to_debug.add(eq_no)
+        for eq_no in equipment_to_debug:
+            if eq_no in equipment_dict:
+                equipment = equipment_dict[eq_no]
+                print(f"DEBUG: Equipment {eq_no} has {len(equipment.components)} components")
+                for comp in equipment.components:
+                    print(f"  - Component {comp.component_name}: {comp.existing_data}")
+            else:
+                print(f"DEBUG: Equipment {eq_no} not found in collected data")
         return equipment_dict
     
     def _run_save(self,) -> None:
         """Run save in background thread"""
         try:
-            db = SessionLocal()
-            try:
-                work_id = int(self.controller.current_work.get("work_id"))
-                user_id = self.controller.current_user.get("id")
-                
-                total_equipment_saved = 0
-                total_components_saved = 0
-                
-                # Process each equipment in the state
-                for eq_no, ui_equipment in self.state.equipment_map.items():
-                    # Get equipment from database (check if exists)
-                    db_equipment = DatabaseService.get_equipment_by_work_and_number(
-                        db, work_id, eq_no
-                    )
+            # Get total equipment count from converted files
+            total_equipment = len(self.state.converted_files) if hasattr(self.state, 'converted_files') else len(self.state.equipment_map)
+            
+            if total_equipment > 0:
+                db = SessionLocal()
+                try:
+                    work_id = int(self.controller.current_work.get("work_id"))
+                    user_id = self.controller.current_user.get("id")
                     
-                    if db_equipment:
-                        # Compare with database original and update
-                        print(f"\nDEBUG: Updating existing equipment: {eq_no}")
-                        
-                        # We'll use batch save approach - update equipment info if needed
-                        # The DatabaseService.save_equipment_with_components will handle updates
-                        
-                        # Save/update equipment with its components
-                        drawing_path = ""  # You might need to get this from somewhere
-                        result = DatabaseService.save_equipment_with_components(
-                            db, work_id, user_id, ui_equipment, drawing_path
-                        )
-                        
-                        if result:
-                            # Count corrections (calculate fields changed)
-                            corrections_count = 0
-                            # You could implement logic here to count specific corrections
-                            
-                            if corrections_count > 0:
-                                # Log correction (simplified - count all fields as potential corrections)
-                                total_fields = len(ui_equipment.components) * 9  # Approx 9 fields per component
-                                DatabaseService.log_correction(
-                                    db, db_equipment.equipment_id, user_id,
-                                    total_fields, corrections_count
-                                )
-                            
-                            total_equipment_saved += 1
-                            total_components_saved += len(ui_equipment.components)
-                        else:
-                            print(f"WARNING: Failed to update equipment {eq_no}")
+                    total_equipment_saved = 0
+                    total_components_saved = 0
+                    failed_equipment = 0
                     
+                    # Get equipment numbers from converted files
+                    equipment_to_process = set()
+                    if hasattr(self.state, 'converted_files'):
+                        for file_path in self.state.converted_files:
+                            eq_no = get_equipment_number_from_image_path(file_path)
+                            equipment_to_process.add(eq_no)
                     else:
-                        # Equipment doesn't exist in database - create it
-                        print(f"\nDEBUG: Creating new equipment: {eq_no}")
+                        # Fallback to all equipment in map
+                        equipment_to_process = set(self.state.equipment_map.keys())
+                    
+                    # Process only equipment from converted files
+                    for eq_no in equipment_to_process:
+                        if eq_no not in self.state.equipment_map:
+                            self.log_callback(f"⚠️ Equipment {eq_no} not found in equipment map, skipping")
+                            failed_equipment += 1
+                            continue
                         
-                        # Save new equipment with components
-                        drawing_path = ""  # You might need to get this from somewhere
-                        result = DatabaseService.save_equipment_with_components(
-                            db, work_id, user_id, ui_equipment, drawing_path
+                        ui_equipment = self.state.equipment_map[eq_no]
+                        
+                        # Get equipment from database (check if exists)
+                        db_equipment = DatabaseService.get_equipment_by_work_and_number(
+                            db, work_id, eq_no
                         )
                         
-                        if result:
-                            total_equipment_saved += 1
-                            total_components_saved += len(ui_equipment.components)
+                        if db_equipment:
+                            # Compare with database original and update
+                            print(f"\nDEBUG: Updating existing equipment: {eq_no}")
                             
-                            # Get the newly created equipment ID
-                            new_equipment_id = DatabaseService.get_equipment_id_by_equipment_number(
-                                db, work_id, eq_no
+                            # Get drawing path if available
+                            drawing_path = ""
+                            if hasattr(self.state, 'converted_files'):
+                                for file_path in self.state.converted_files:
+                                    if get_equipment_number_from_image_path(file_path) == eq_no:
+                                        drawing_path = file_path
+                                        break
+                            
+                            # Save/update equipment with its components
+                            result = DatabaseService.save_equipment_with_components(
+                                db, work_id, user_id, ui_equipment, drawing_path
                             )
                             
-                            if new_equipment_id:
-                                # Log creation as correction
-                                total_fields = len(ui_equipment.components) * 9
-                                DatabaseService.log_correction(
-                                    db, new_equipment_id, user_id,
-                                    0, total_fields  # All fields are new
-                                )
+                            if result:
+                                # Count corrections (calculate fields changed)
+                                corrections_count = 0
+                                # You could implement logic here to count specific corrections
+                                
+                                if corrections_count > 0:
+                                    # Log correction (simplified - count all fields as potential corrections)
+                                    total_fields = len(ui_equipment.components) * 9  # Approx 9 fields per component
+                                    DatabaseService.log_correction(
+                                        db, db_equipment.equipment_id, user_id,
+                                        total_fields, corrections_count
+                                    )
+                                
+                                total_equipment_saved += 1
+                                total_components_saved += len(ui_equipment.components)
+                            else:
+                                print(f"WARNING: Failed to update equipment {eq_no}")
+                                failed_equipment += 1
+                        
                         else:
-                            print(f"WARNING: Failed to create equipment {eq_no}")
-                
-                # Log Excel generation to work history
-                if total_equipment_saved > 0:
-                    DatabaseService.log_work_history(
-                        db,
-                        work_id,
-                        user_id,
-                        action_type="generate_excel",
-                        description=f"Generated Excel with {total_equipment_saved} equipment and {total_components_saved} components"
-                    )
+                            # Equipment doesn't exist in database - create it
+                            print(f"\nDEBUG: Creating new equipment: {eq_no}")
+                            
+                            # Get drawing path if available
+                            drawing_path = ""
+                            if hasattr(self.state, 'converted_files'):
+                                for file_path in self.state.converted_files:
+                                    if get_equipment_number_from_image_path(file_path) == eq_no:
+                                        drawing_path = file_path
+                                        break
+                            
+                            # Save new equipment with components
+                            result = DatabaseService.save_equipment_with_components(
+                                db, work_id, user_id, ui_equipment, drawing_path
+                            )
+                            
+                            if result:
+                                total_equipment_saved += 1
+                                total_components_saved += len(ui_equipment.components)
+                                
+                                # Get the newly created equipment ID
+                                new_equipment_id = DatabaseService.get_equipment_id_by_equipment_number(
+                                    db, work_id, eq_no
+                                )
+                                
+                                if new_equipment_id:
+                                    # Log creation as correction
+                                    total_fields = len(ui_equipment.components) * 9
+                                    DatabaseService.log_correction(
+                                        db, new_equipment_id, user_id,
+                                        0, total_fields  # All fields are new
+                                    )
+                            else:
+                                print(f"WARNING: Failed to create equipment {eq_no}")
+                                failed_equipment += 1
                     
-                    self.log_callback(f"💾 Saved {total_equipment_saved} equipment with {total_components_saved} components to database")
-                else:
-                    self.log_callback(f"⚠️ No equipment saved to database")
-                
-                # Commit transaction
-                db.commit()
-                
-                # Show success message
+                    # Log Excel generation to work history
+                    if total_equipment_saved > 0:
+                        DatabaseService.log_work_history(
+                            db,
+                            work_id,
+                            user_id,
+                            action_type="generate_excel",
+                            description=f"Generated Excel with {total_equipment_saved}/{total_equipment} equipment and {total_components_saved} components"
+                        )
+                        
+                        self.log_callback(
+                            f"💾 Saved {total_equipment_saved}/{total_equipment} equipment "
+                            f"with {total_components_saved} components to database"
+                        )
+                        if failed_equipment > 0:
+                            self.log_callback(f"⚠️ Failed to save {failed_equipment} equipment")
+                    else:
+                        self.log_callback(f"⚠️ No equipment saved to database (0/{total_equipment})")
+                    
+                    # Commit transaction
+                    db.commit()
+                    
+                    # Show success message with detailed info
+                    if total_equipment_saved > 0:
+                        message = Messages.SAVE_SUCCESS.format(total_equipment_saved)
+                        if failed_equipment > 0:
+                            message += f"\n\n⚠️ Failed to save {failed_equipment} equipment"
+                        self.parent.after(0, lambda: messagebox.showinfo("Save Successful", message))
+                    else:
+                        self.parent.after(0, lambda: messagebox.showwarning(
+                            "Save Warning",
+                            f"No equipment were saved successfully (0/{total_equipment})"
+                        ))
+                    
+                except Exception as e:
+                    db.rollback()
+                    self.log_callback(f"⚠️ Database update error: {e}")
+                    import traceback
+                    traceback.print_exc()
+                finally:
+                    db.close()
+            else:
+                self.log_callback("ℹ️ No equipment to save")
                 self.parent.after(0, lambda: messagebox.showinfo(
-                    "Save Successful",
-                    Messages.SAVE_SUCCESS.format(len(self.state.equipment_map))
+                    "No Data",
+                    "No equipment data to save"
                 ))
-                
-            except Exception as e:
-                db.rollback()
-                self.log_callback(f"⚠️ Database update error: {e}")
-                import traceback
-                traceback.print_exc()
-            finally:
-                db.close()
-        
+
         except Exception as e:
             self.log_callback(f"❌ Save error: {e}")
             import traceback
