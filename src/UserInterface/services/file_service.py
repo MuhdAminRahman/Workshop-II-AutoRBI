@@ -98,7 +98,7 @@ class FileService:
         
         try:
             # Convert PDF
-            image_paths = self.pdf_converter.convert_single(pdf_path, output_dir=output_dir)
+            image_paths = self.pdf_converter.convert_single(pdf_path, output_folder=output_dir)
             
             # If converter doesn't support output_dir, rename/move files
             if image_paths and os.path.dirname(image_paths[0]) != output_dir:

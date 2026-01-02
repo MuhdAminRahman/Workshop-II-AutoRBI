@@ -7,12 +7,18 @@ and Components in one safe transaction.
 
 from datetime import datetime
 from sqlalchemy.orm import Session
-from AutoRBI_Database.database.models import Work, AssignWork, Equipment, Component
-from AutoRBI_Database.database.crud import create_history, get_works_for_user,get_work_by_id
+from AutoRBI_Database.database.models import Work, Equipment, Component
+from AutoRBI_Database.database.crud import (
+    create_history,
+    get_works_for_user,
+    get_work_by_id,
+)
 
 
-def create_work_with_items(db: Session, work_name: str, description: str, parsed_equipment: list, user_id: int):
-    
+def create_work_with_items(
+    db: Session, work_name: str, description: str, parsed_equipment: list, user_id: int
+):
+
     try:
         # --------------------------------------------------------------
         # 1. Create the Work (NOT committed yet)
@@ -21,13 +27,12 @@ def create_work_with_items(db: Session, work_name: str, description: str, parsed
             work_name=work_name,
             description=description,
             status="In progress",
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
 
         db.add(work)
-        db.flush()  
+        db.flush()
         # flush gives the work a work_id WITHOUT committing the transaction
-
 
         # --------------------------------------------------------------
         # 2. Insert Equipment + Components
@@ -39,7 +44,7 @@ def create_work_with_items(db: Session, work_name: str, description: str, parsed
                 work_id=work.work_id,
                 equipment_no=eq["equipment_no"],
                 pmt_no=eq["pmt_no"],
-                description=eq["description"]
+                description=eq["description"],
             )
             db.add(equipment)
             db.flush()  # assigns equipment_id
@@ -49,10 +54,9 @@ def create_work_with_items(db: Session, work_name: str, description: str, parsed
                 component = Component(
                     equipment_id=equipment.equipment_id,
                     part_name=comp["part_name"],
-                    phase=comp.get("phase")
+                    phase=comp.get("phase"),
                 )
                 db.add(component)
-
 
         # --------------------------------------------------------------
         # 3. Insert Work History
@@ -62,7 +66,7 @@ def create_work_with_items(db: Session, work_name: str, description: str, parsed
             work_id=work.work_id,
             user_id=user_id,
             action_type="create_work",
-            description=f"Work '{work_name}' created"
+            description=f"Work '{work_name}' created",
         )
 
         # --------------------------------------------------------------
@@ -72,7 +76,6 @@ def create_work_with_items(db: Session, work_name: str, description: str, parsed
         db.refresh(work)
         return work
 
-
     except Exception as e:
         # --------------------------------------------------------------
         # 5. If ANYTHING fails → rollback ALL changes
@@ -80,10 +83,12 @@ def create_work_with_items(db: Session, work_name: str, description: str, parsed
         db.rollback()
         raise e
 
+
 def get_assigned_works(db: Session, user_id: int):
     """Get all works assigned to a specific user"""
     works = get_works_for_user(db, user_id)
     return works
+
 
 def get_work_details(db: Session, work_id: int):
     """Get detailed information about a specific work, including equipment and components"""

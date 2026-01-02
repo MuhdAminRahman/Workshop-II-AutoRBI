@@ -8,6 +8,16 @@ from PIL import Image
 import customtkinter as ctk
 
 
+# Import centralized validation rules - same rules used by backend
+# This ensures UI validation matches backend validation exactly
+from AutoRBI_Database.validation_rules import (
+    UsernameRules,
+    PasswordRules,
+    get_username_validation_error,
+    get_password_validation_error,
+)
+
+
 class LoginView:
     """Handles the login interface."""
 
@@ -136,39 +146,159 @@ class LoginView:
 
         # Login behaviour
         def handle_login() -> None:
-            username = username_entry.get().strip()
-            password = password_entry.get().strip()
-            if not username or not password:
-                messagebox.showwarning(
-                    "Login Error", "Please enter both username and password."
-                )
+            """
+            Handle login button click with comprehensive error handling.
+
+            This method implements:
+            - 6. Input Validation: UI-level validation before backend call
+            - 7. User-Friendly Messages: Context-aware error messages
+            - 8. Error Context: Different handling based on error_type
+
+            Flow:
+            1. Validate inputs at UI level (quick feedback)
+            2. Call backend authentication
+            3. Handle response based on error_type
+            4. Show appropriate messages and actions
+            """
+            # Get input values
+            username = username_entry.get()
+            password = password_entry.get()
+
+            # ========================================================================
+            # LAYER 1: UI-LEVEL VALIDATION (Quick feedback, no backend call needed)
+            # Using centralized rules from validation_rules.py
+            # ========================================================================
+
+            # Validate username using centralized validation
+            # get_username_validation_error returns error message or None if valid
+            username_error = get_username_validation_error(username)
+            if username_error:
+                messagebox.showwarning("Invalid Username", username_error)
+                username_entry.focus()
+                username_entry.select_range(0, "end")
                 return
-            # TODO: Backend - Authenticate user credentials against database
-            # TODO: Backend - Validate username and password
-            # TODO: Backend - Load user session and profile data
-            # TODO: Backend - Get employee group/department for work assignment filtering
-            # TODO: Backend - Return success/error status and employee group
-            
-            # Example backend integration:
-            # auth_result = self.controller.authenticate_user(username, password)
-            # if auth_result.get("success"):
-            #     self.controller.current_user["group"] = auth_result.get("group")
-            #     self.controller.available_works = auth_result.get("available_works", [])
-            #     self.controller.show_main_menu()
-            # else:
-            #     messagebox.showerror("Login Failed", "Invalid username or password.")
-            
-            # For now, set default group (remove when backend is integrated)
-            self.controller.current_user = {
-            "id": 2,
-            "username": "John Doe",
-            "role": "Engineer",
-            "email": "john.doe@ipetro.com",
-            "group": None,  # Employee group/department set after login
-        }
-            self.controller.available_works = self.controller.getAssignedWorks()
-            self.controller.current_work = self.controller.available_works[0] if self.controller.available_works else None
-            self.controller.show_main_menu()
+
+            # Validate password using centralized validation
+            password_error = get_password_validation_error(password)
+            if password_error:
+                messagebox.showwarning("Invalid Password", password_error)
+                password_entry.focus()
+                return
+
+            # ========================================================================
+            # LAYER 2: BACKEND AUTHENTICATION
+            # ========================================================================
+
+            try:
+                # Clean inputs before sending to backend
+                username_clean = username.strip()
+
+                # Call backend authentication
+                auth_result = self.controller.authenticate_user(
+                    username_clean, password
+                )
+
+                # ====================================================================
+                # LAYER 3: HANDLE RESPONSE BASED ON ERROR TYPE
+                # ====================================================================
+
+                if auth_result.get("success"):
+                    # SUCCESS - Proceed to main menu
+
+                    self.controller.available_works = self.controller.getAssignedWorks()
+
+                    self.controller.current_work = (
+                        self.controller.available_works[0]
+                        if self.controller.available_works
+                        else None
+                    )
+
+                    self.controller.show_main_menu()
+
+                else:
+                    # FAILURE - Handle based on error_type
+                    error_type = auth_result.get("error_type", "unknown")
+                    message = auth_result.get("message", "Login failed")
+
+                    # 8. ERROR CONTEXT - Different handling for different error types
+
+                    if error_type == "authentication":
+                        # Wrong credentials - simple retry
+                        # 7. USER-FRIENDLY MESSAGES
+                        messagebox.showerror("Login Failed", message)
+
+                        # Clear password field for security
+                        password_entry.delete(0, "end")
+
+                        # Focus on password field for retry
+                        password_entry.focus()
+
+                    elif error_type == "account_status":
+                        # Account inactive/locked - needs admin intervention
+                        # 7. USER-FRIENDLY MESSAGES - More detailed with action
+                        messagebox.showerror(
+                            "Account Issue",
+                            f"{message}\n\n"
+                            "Please contact your system administrator for assistance.",
+                        )
+
+                    elif error_type == "validation":
+                        # Input validation error
+                        messagebox.showwarning("Invalid Input", message)
+
+                        # Focus on appropriate field
+                        field = auth_result.get("field", "username")
+                        if field == "username":
+                            username_entry.focus()
+                            username_entry.select_range(0, "end")
+                        else:
+                            password_entry.focus()
+
+                    elif error_type == "system":
+                        # System error (database, network, etc.)
+                        # 7. USER-FRIENDLY MESSAGES - Explain it's temporary
+                        retry_delay = auth_result.get("retry_delay", 0)
+
+                        if retry_delay > 0:
+                            # Suggest retry with delay
+                            response = messagebox.askretrycancel(
+                                "Service Unavailable",
+                                f"{message}\n\n"
+                                f"Would you like to retry?\n"
+                                f"(Waiting {retry_delay} seconds is recommended)",
+                            )
+
+                            if response:  # User clicked Retry
+                                # Could add a delay here if desired
+                                # self.after(retry_delay * 1000, lambda: handle_login())
+                                pass  # Or just let them retry immediately
+                        else:
+                            # No specific delay suggested
+                            messagebox.showerror(
+                                "Service Error",
+                                f"{message}\n\n"
+                                "Please try again in a few moments.\n"
+                                "If this problem persists, contact support.",
+                            )
+
+                    else:
+                        # Unknown error type - generic handling
+                        messagebox.showerror(
+                            "Login Error",
+                            f"{message}\n\n"
+                            "Please try again or contact support if this continues.",
+                        )
+
+            except Exception as e:
+                # Catch-all for any unexpected UI-level errors
+                # This should rarely happen if backend is properly handling errors
+                messagebox.showerror(
+                    "Unexpected Error",
+                    "An unexpected error occurred.\n"
+                    "Please restart the application or contact support.",
+                )
+                # Could log this error if you have UI-level logging
+                print(f"UI Error in login: {e}")  # Basic logging
 
         # Primary button with glass effect
         login_btn = ctk.CTkButton(

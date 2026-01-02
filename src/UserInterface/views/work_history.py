@@ -2,6 +2,7 @@
 
 from typing import List, Dict, Any, Optional
 import customtkinter as ctk
+from tkinter import messagebox
 
 
 class WorkHistoryView:
@@ -14,21 +15,43 @@ class WorkHistoryView:
         self.table_body: Optional[ctk.CTkScrollableFrame] = None
         self.current_filter: str = "all"
 
-    def load_history(self, history_items: List[Dict[str, Any]]) -> None:
-        """Populate the work history table.
-        
-        Each item dict can contain keys like:
-        {"id": str, "file_name": str, "created_at": str, "status": str, "files_count": int}
+        # Pagination state
+        self.current_page = 1
+        self.per_page = 20
+        self.total_pages = 1
+        self.total_items = 0
+
+        # Pagination widgets (to update states)
+        self.prev_button: Optional[ctk.CTkButton] = None
+        self.next_button: Optional[ctk.CTkButton] = None
+        self.page_info_label: Optional[ctk.CTkLabel] = None
+
+        # Filter buttons (to update states)
+        self.filter_buttons: Dict[str, ctk.CTkButton] = {}
+
+    def load_history(
+        self, history_items: List[Dict[str, Any]], total: int = 0, total_pages: int = 1
+    ) -> None:
+        """
+        Populate the work history table.
+
+        Args:
+            history_items: List of history entry dictionaries
+            total: Total number of items (for pagination)
+            total_pages: Total number of pages
         """
         self.history_rows = history_items
+        self.total_items = total
+        self.total_pages = total_pages
+
         if self.table_body is not None:
             # Clear current rows
             for child in self.table_body.winfo_children():
                 child.destroy()
-            # Rebuild
-            filtered = self._filter_items(history_items)
-            if filtered:
-                for idx, item in enumerate(filtered, start=1):
+
+            # Rebuild table
+            if history_items:
+                for idx, item in enumerate(history_items, start=1):
                     self._add_history_row(idx, item)
             else:
                 # Show hint if no data
@@ -41,158 +64,199 @@ class WorkHistoryView:
                 )
                 hint_label.grid(row=0, column=0, columnspan=6, sticky="w", pady=(8, 8))
 
-    def _filter_items(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Filter items based on current filter selection."""
-        if self.current_filter == "all":
-            return items
-        # TODO: Backend - Implement date-based filtering when backend provides date data
-        return items
+        # Update pagination display
+        self._update_pagination_display()
+
+    def _update_pagination_display(self) -> None:
+        """Update pagination button states and page info label"""
+
+        if self.prev_button:
+            if self.current_page <= 1:
+                self.prev_button.configure(state="disabled")
+            else:
+                self.prev_button.configure(state="normal")
+
+        if self.next_button:
+            if self.current_page >= self.total_pages:
+                self.next_button.configure(state="disabled")
+            else:
+                self.next_button.configure(state="normal")
+
+        if self.page_info_label:
+            self.page_info_label.configure(
+                text=f"Page {self.current_page} of {self.total_pages} ({self.total_items} total items)"
+            )
 
     def _apply_filter(self, period: str) -> None:
-        """Apply time period filter (button-based, no input fields)."""
+        """Apply time period filter and update button states."""
         self.current_filter = period
-        if self.table_body is not None:
-            for child in self.table_body.winfo_children():
-                child.destroy()
-            filtered = self._filter_items(self.history_rows)
-            for idx, item in enumerate(filtered, start=1):
-                self._add_history_row(idx, item)
+        self.current_page = 1  # Reset to first page when filter changes
 
-    def _view_details(self, item: Dict[str, Any]) -> None:
-        """Open details view for a work history item."""
-        # TODO: Backend - Delegate to controller/backend for details loading
-        pass
+        # Update filter button states immediately
+        self._update_filter_buttons()
 
-    def _export_work(self, item: Dict[str, Any]) -> None:
-        """Export work item to Excel/PDF."""
-        # TODO: Backend - Generate Excel file with work item data
-        # TODO: Backend - Generate PDF report with work item details
-        # TODO: Backend - Return file path for download
-        # TODO: Backend - Delegate to controller/backend for export processing
-        pass
+        # Apply the filter
+        self.controller.apply_work_history_filter(period)
+
+    def _update_filter_buttons(self) -> None:
+        """Update the visual state of filter buttons based on current filter."""
+        if hasattr(self, "filter_buttons"):
+            for period_key, btn in self.filter_buttons.items():
+                if period_key == self.current_filter:
+                    # Selected button - use default theme color
+                    btn.configure(fg_color=["#3B8ED0", "#1F6AA5"])
+                else:
+                    # Unselected button - use gray
+                    btn.configure(fg_color=("gray20", "gray30"))
 
     def _delete_work(self, item: Dict[str, Any]) -> None:
-        """Delete/archive a work history item."""
-        # TODO: Backend - Delegate to controller/backend for work item deletion
-        pass
+        """Delete a work history log entry (Admin only)."""
+        history_id = item.get("id")
+        if history_id:
+            self.controller.delete_work_history(history_id)
+
+    def _previous_page(self) -> None:
+        """Navigate to previous page"""
+        if self.current_page > 1:
+            self.current_page -= 1
+            self.controller.change_history_page(self.current_page)
+
+    def _next_page(self) -> None:
+        """Navigate to next page"""
+        if self.current_page < self.total_pages:
+            self.current_page += 1
+            self.controller.change_history_page(self.current_page)
 
     def _add_history_row(self, index: int, item: Dict[str, Any]) -> None:
-        """Add a row to the history table."""
+        """Add a row to the history table with fixed column widths."""
         if self.table_body is None:
             return
 
-        file_name = item.get("file_name", f"Work {index}")
-        created_at = item.get("created_at", "-")
-        status = item.get("status", "Completed")
-        files_count = item.get("files_count", 0)
+        # Get current user role from controller
+        user_role = self.controller.current_user.get("role", "Engineer")
+        is_admin = user_role == "Admin"
 
-        # Table row frame
+        # Extract data with defaults
+        history_id = item.get("id", "N/A")
+        action_type = item.get("action_type", "Unknown")
+        description = item.get("description", "-")
+        timestamp = item.get("timestamp", "-")
+        work_id = item.get("work_id", "-")
+        equipment_name = item.get("equipment_name", "-")  # NEW: Equipment column
+
+        # Table row frame - FIXED HEIGHT
         row_frame = ctk.CTkFrame(
             self.table_body,
             corner_radius=4,
             border_width=1,
             border_color=("gray80", "gray30"),
-            height=50,
+            height=60,  # Fixed height for all rows
         )
-        row_frame.grid(row=index, column=0, columnspan=6, sticky="ew", pady=2)
-        row_frame.grid_columnconfigure(0, weight=0, minsize=50)   # No.
-        row_frame.grid_columnconfigure(1, weight=2)                # File Name
-        row_frame.grid_columnconfigure(2, weight=1)                # Date
-        row_frame.grid_columnconfigure(3, weight=1)                # Status
-        row_frame.grid_columnconfigure(4, weight=1)                # Files Count
-        row_frame.grid_columnconfigure(5, weight=1)                # Actions
+        row_frame.grid(row=index, column=0, columnspan=7, sticky="ew", pady=2)
+        row_frame.pack_propagate(False)  # Prevent frame from resizing based on content
+
+        # Configure columns with FIXED widths
+        row_frame.grid_columnconfigure(0, weight=0, minsize=60)  # No.
+        row_frame.grid_columnconfigure(1, weight=0, minsize=90)  # Work ID
+        row_frame.grid_columnconfigure(2, weight=0, minsize=120)  # Equipment (NEW)
+        row_frame.grid_columnconfigure(3, weight=0, minsize=140)  # Action Type
+        row_frame.grid_columnconfigure(4, weight=1, minsize=200)  # Description
+        row_frame.grid_columnconfigure(5, weight=0, minsize=150)  # Timestamp
+        row_frame.grid_columnconfigure(
+            6, weight=0, minsize=100
+        )  # Actions (Delete only)
 
         # Column 0: No.
         no_label = ctk.CTkLabel(
             row_frame,
-            text=str(index),
+            text=str((self.current_page - 1) * self.per_page + index),
             font=("Segoe UI", 11),
             anchor="center",
         )
-        no_label.grid(row=0, column=0, sticky="ew", padx=12, pady=12)
+        no_label.grid(row=0, column=0, sticky="nsew", padx=8, pady=12)
 
-        # Column 1: File Name
-        name_label = ctk.CTkLabel(
+        # Column 1: Work ID
+        work_id_label = ctk.CTkLabel(
             row_frame,
-            text=file_name,
-            font=("Segoe UI", 11),
+            text=str(work_id),
+            font=("Segoe UI", 10),
+            text_color=("gray60", "gray80"),
+            anchor="center",
+        )
+        work_id_label.grid(row=0, column=1, sticky="nsew", padx=8, pady=12)
+
+        # Column 2: Equipment (NEW)
+        equipment_label = ctk.CTkLabel(
+            row_frame,
+            text=str(equipment_name),
+            font=("Segoe UI", 11, "bold"),
+            anchor="center",
+        )
+        equipment_label.grid(row=0, column=2, sticky="nsew", padx=8, pady=12)
+
+        # Column 3: Action Type
+        action_label = ctk.CTkLabel(
+            row_frame,
+            text=action_type,
+            font=("Segoe UI", 10),
             anchor="w",
         )
-        name_label.grid(row=0, column=1, sticky="ew", padx=12, pady=12)
+        action_label.grid(row=0, column=3, sticky="nsew", padx=8, pady=12)
 
-        # Column 2: Date
-        date_label = ctk.CTkLabel(
+        # Column 4: Description - truncate long text
+        # Truncate description to fit in fixed width
+        max_desc_length = 40
+        truncated_desc = (
+            description[:max_desc_length] + "..."
+            if len(description) > max_desc_length
+            else description
+        )
+
+        desc_label = ctk.CTkLabel(
             row_frame,
-            text=created_at,
+            text=truncated_desc,
             font=("Segoe UI", 10),
             text_color=("gray60", "gray80"),
             anchor="w",
         )
-        date_label.grid(row=0, column=2, sticky="ew", padx=12, pady=12)
+        desc_label.grid(row=0, column=4, sticky="nsew", padx=8, pady=12)
 
-        # Column 3: Status badge
-        status_colors = {
-            "Completed": ("#2ecc71", "#27ae60"),
-            "In Progress": ("#f39c12", "#e67e22"),
-            "Failed": ("#e74c3c", "#c0392b"),
-        }
-        status_color = status_colors.get(status, ("gray70", "gray60"))
-        status_badge = ctk.CTkLabel(
+        # Column 5: Timestamp
+        time_label = ctk.CTkLabel(
             row_frame,
-            text=status,
-            font=("Segoe UI", 9, "bold"),
-            fg_color=status_color,
-            corner_radius=4,
-            width=90,
-            height=24,
-        )
-        status_badge.grid(row=0, column=3, sticky="w", padx=12, pady=12)
-
-        # Column 4: Files Count
-        files_label = ctk.CTkLabel(
-            row_frame,
-            text=str(files_count),
+            text=timestamp,
             font=("Segoe UI", 10),
+            text_color=("gray60", "gray80"),
             anchor="center",
         )
-        files_label.grid(row=0, column=4, sticky="ew", padx=12, pady=12)
+        time_label.grid(row=0, column=5, sticky="nsew", padx=8, pady=12)
 
-        # Column 5: Actions
+        # Column 6: Actions (Delete button - ADMIN ONLY)
         actions_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
-        actions_frame.grid(row=0, column=5, sticky="e", padx=12, pady=8)
+        actions_frame.grid(row=0, column=6, sticky="nsew", padx=8, pady=12)
 
-        view_btn = ctk.CTkButton(
-            actions_frame,
-            text="View",
-            width=60,
-            height=28,
-            font=("Segoe UI", 9),
-            command=lambda i=item: self._view_details(i),
-        )
-        view_btn.pack(side="left", padx=(0, 4))
-
-        export_btn = ctk.CTkButton(
-            actions_frame,
-            text="Export",
-            width=60,
-            height=28,
-            font=("Segoe UI", 9),
-            fg_color=("gray20", "gray30"),
-            command=lambda i=item: self._export_work(i),
-        )
-        export_btn.pack(side="left", padx=(0, 4))
-
-        delete_btn = ctk.CTkButton(
-            actions_frame,
-            text="Delete",
-            width=60,
-            height=28,
-            font=("Segoe UI", 9),
-            fg_color=("gray20", "gray30"),
-            hover_color=("red", "darkred"),
-            command=lambda i=item: self._delete_work(i),
-        )
-        delete_btn.pack(side="left")
+        if is_admin:
+            # Show delete button only for Admin
+            delete_btn = ctk.CTkButton(
+                actions_frame,
+                text="Delete",
+                width=80,
+                height=32,
+                font=("Segoe UI", 10),
+                fg_color=("#e74c3c", "#c0392b"),
+                hover_color=("#c0392b", "#a93226"),
+                command=lambda i=item: self._delete_work(i),
+            )
+            delete_btn.pack(expand=True)
+        else:
+            # Show disabled state or empty for Engineers
+            no_action_label = ctk.CTkLabel(
+                actions_frame,
+                text="-",
+                font=("Segoe UI", 10),
+                text_color=("gray60", "gray80"),
+            )
+            no_action_label.pack(expand=True)
 
     def show(self) -> None:
         """Display the Work History Menu interface."""
@@ -246,14 +310,14 @@ class WorkHistoryView:
 
         page_title = ctk.CTkLabel(
             main_frame,
-            text="Work History",
+            text="Work History (Logs)",
             font=("Segoe UI", 26, "bold"),
         )
         page_title.grid(row=0, column=0, sticky="w", padx=24, pady=(18, 6))
 
         subtitle_label = ctk.CTkLabel(
             main_frame,
-            text="Browse completed work sessions and manage your extraction history.",
+            text="View system logs of all actions performed. Admin can delete logs.",
             font=("Segoe UI", 11),
             text_color=("gray25", "gray80"),
         )
@@ -270,68 +334,136 @@ class WorkHistoryView:
         )
         filter_label.pack(side="left", padx=(0, 8))
 
-        filter_buttons = ["All", "Today", "Last 7 days", "Last month"]
-        for period in filter_buttons:
-            period_key = period.lower().replace(" ", "_")
+        # Store filter buttons for later updates
+        self.filter_buttons = {}
+
+        filter_buttons_config = [
+            ("All", "all"),
+            ("Today", "today"),
+            ("Last 7 days", "last_7_days"),
+            ("Last month", "last_month"),
+        ]
+
+        for label, period_key in filter_buttons_config:
+            is_selected = self.current_filter == period_key
             btn = ctk.CTkButton(
                 filter_section,
-                text=period,
+                text=label,
                 width=100,
                 height=28,
                 font=("Segoe UI", 9),
-                fg_color=("gray20", "gray30") if self.current_filter != period_key else None,
+                fg_color=(
+                    ["#3B8ED0", "#1F6AA5"] if is_selected else ("gray20", "gray30")
+                ),
                 command=lambda p=period_key: self._apply_filter(p),
             )
             btn.pack(side="left", padx=(0, 6))
+            self.filter_buttons[period_key] = btn
 
         # Table container
         table_container = ctk.CTkFrame(main_frame, fg_color="transparent")
-        table_container.grid(row=3, column=0, sticky="nsew", padx=24, pady=(0, 24))
+        table_container.grid(row=3, column=0, sticky="nsew", padx=24, pady=(0, 12))
         table_container.grid_rowconfigure(1, weight=1)
         table_container.grid_columnconfigure(0, weight=1)
 
-        # Table header
+        # Table header with FIXED widths
         header_row = ctk.CTkFrame(
             table_container,
             corner_radius=8,
             border_width=1,
             border_color=("gray80", "gray30"),
             fg_color=("gray90", "gray20"),
+            height=50,
         )
         header_row.grid(row=0, column=0, sticky="ew", pady=(0, 4))
-        header_row.grid_columnconfigure(0, weight=0, minsize=50)   # No.
-        header_row.grid_columnconfigure(1, weight=2)                # File Name
-        header_row.grid_columnconfigure(2, weight=1)                # Date
-        header_row.grid_columnconfigure(3, weight=1)                # Status
-        header_row.grid_columnconfigure(4, weight=1)               # Files Count
-        header_row.grid_columnconfigure(5, weight=1)               # Actions
+        header_row.pack_propagate(False)
 
-        headers = ["No.", "File Name", "Date", "Status", "Files", "Actions"]
+        # Configure header columns with FIXED widths (same as row columns)
+        header_row.grid_columnconfigure(0, weight=0, minsize=60)  # No.
+        header_row.grid_columnconfigure(1, weight=0, minsize=90)  # Work ID
+        header_row.grid_columnconfigure(2, weight=0, minsize=120)  # Equipment (NEW)
+        header_row.grid_columnconfigure(3, weight=0, minsize=140)  # Action Type
+        header_row.grid_columnconfigure(4, weight=1, minsize=200)  # Description
+        header_row.grid_columnconfigure(5, weight=0, minsize=150)  # Timestamp
+        header_row.grid_columnconfigure(6, weight=0, minsize=100)  # Actions
+
+        headers = [
+            "No.",
+            "Work ID",
+            "Equipment",
+            "Action Type",
+            "Description",
+            "Timestamp",
+            "Actions",
+        ]
         for col, header_text in enumerate(headers):
             header_label = ctk.CTkLabel(
                 header_row,
                 text=header_text,
                 font=("Segoe UI", 11, "bold"),
-                anchor="w" if col < 5 else "center",
+                anchor="center" if col in [0, 1, 2, 5, 6] else "w",
             )
-            header_label.grid(row=0, column=col, sticky="ew", padx=12, pady=10)
+            header_label.grid(row=0, column=col, sticky="nsew", padx=8, pady=10)
 
         # Scrollable history table body
-        self.table_body = ctk.CTkScrollableFrame(table_container, fg_color="transparent")
+        self.table_body = ctk.CTkScrollableFrame(
+            table_container, fg_color="transparent"
+        )
         self.table_body.grid(row=1, column=0, sticky="nsew")
-        self.table_body.grid_columnconfigure(0, weight=0, minsize=50)   # No.
-        self.table_body.grid_columnconfigure(1, weight=2)                # File Name
-        self.table_body.grid_columnconfigure(2, weight=1)                # Date
-        self.table_body.grid_columnconfigure(3, weight=1)                # Status
-        self.table_body.grid_columnconfigure(4, weight=1)                # Files Count
-        self.table_body.grid_columnconfigure(5, weight=1)                # Actions
+
+        # Configure table body columns with FIXED widths (same as header)
+        self.table_body.grid_columnconfigure(0, weight=0, minsize=60)  # No.
+        self.table_body.grid_columnconfigure(1, weight=0, minsize=90)  # Work ID
+        self.table_body.grid_columnconfigure(
+            2, weight=0, minsize=120
+        )  # Equipment (NEW)
+        self.table_body.grid_columnconfigure(3, weight=0, minsize=140)  # Action Type
+        self.table_body.grid_columnconfigure(4, weight=1, minsize=200)  # Description
+        self.table_body.grid_columnconfigure(5, weight=0, minsize=150)  # Timestamp
+        self.table_body.grid_columnconfigure(6, weight=0, minsize=100)  # Actions
 
         # Initially show hint
         hint_label = ctk.CTkLabel(
             self.table_body,
-            text="No work history loaded yet. Completed extractions will appear here.",
+            text="Loading work history...",
             font=("Segoe UI", 11),
             text_color=("gray40", "gray75"),
             justify="left",
         )
-        hint_label.grid(row=0, column=0, columnspan=6, sticky="w", pady=(8, 8))
+        hint_label.grid(row=0, column=0, columnspan=7, sticky="w", pady=(8, 8))
+
+        # Pagination controls
+        pagination_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        pagination_frame.grid(row=4, column=0, sticky="ew", padx=24, pady=(8, 24))
+
+        # Previous button
+        self.prev_button = ctk.CTkButton(
+            pagination_frame,
+            text="← Previous",
+            width=120,
+            height=32,
+            font=("Segoe UI", 10),
+            command=self._previous_page,
+            state="disabled",
+        )
+        self.prev_button.pack(side="left")
+
+        # Page info
+        self.page_info_label = ctk.CTkLabel(
+            pagination_frame,
+            text=f"Page {self.current_page} of {self.total_pages} ({self.total_items} total items)",
+            font=("Segoe UI", 10),
+        )
+        self.page_info_label.pack(side="left", padx=20)
+
+        # Next button
+        self.next_button = ctk.CTkButton(
+            pagination_frame,
+            text="Next →",
+            width=120,
+            height=32,
+            font=("Segoe UI", 10),
+            command=self._next_page,
+            state="disabled",
+        )
+        self.next_button.pack(side="left")

@@ -1,5 +1,5 @@
-from database.session import SessionLocal
-from database.crud.material_crud import create_material
+from AutoRBI_Database.session import SessionLocal
+from AutoRBI_Database.crud.material_crud import create_material
 
 db = SessionLocal()
 
