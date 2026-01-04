@@ -628,7 +628,7 @@ class AnalyticsView:
         back_btn = ctk.CTkButton(
             header,
             text="← Back",
-            command=self.controller.show_main_menu,
+            command=self.controller.show_home_menu,
             width=100,
             height=36,
             font=("Segoe UI", 10),

@@ -34,7 +34,7 @@ class SettingsView:
         back_btn = ctk.CTkButton(
             header,
             text="← Back",
-            command=self.controller.show_main_menu,
+            command=self.controller.show_home_menu,
             width=120,
             height=32,
             font=("Segoe UI", 10),
@@ -146,5 +146,5 @@ class SettingsView:
         # TODO: Backend - Apply theme to all UI components
         # TODO: Backend - Return confirmation of theme change
         import customtkinter as ctk
-        ctk.set_appearance_mode(theme)
 
+        ctk.set_appearance_mode(theme)

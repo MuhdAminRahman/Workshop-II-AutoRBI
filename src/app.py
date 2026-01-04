@@ -29,6 +29,7 @@ from UserInterface.views import (
     AnalyticsView,
     LoginView,
     MainMenuView,
+    AdminMenuView,
     NewWorkView,
     RegistrationView,
     ReportMenuView,
@@ -88,6 +89,7 @@ class AutoRBIApp(ctk.CTk):
 
         # Current user info
         self.current_user = None
+        self.home_menu = None  # Track which menu is "home"
         self.available_works = None
         self.current_work = None
 
@@ -104,6 +106,7 @@ class AutoRBIApp(ctk.CTk):
 
         # Admin views
         self.user_management_view = UserManagementView(self, self)
+        self.admin_menu_view = AdminMenuView(self, self)
 
         # TEMP current user info (your code had this stub)
         self.current_user = {
@@ -449,6 +452,24 @@ class AutoRBIApp(ctk.CTk):
     def show_main_menu(self) -> None:
         """Display the main menu view."""
         self.main_menu_view.show()
+        
+    def show_admin_menu(self) -> None:
+        """Display the admin menu view (Admin only)."""
+        logger.info("Showing admin menu")
+        
+        # Verify user is admin
+        if self.current_user.get("role") != "Admin":
+            logger.warning(
+                f"Non-admin user {self.current_user.get('username')} "
+                f"attempted to access admin menu"
+            )
+            self.notification_system.show_notification(
+                message="Access denied. Admin privileges required.",
+                notification_type="error",
+            )
+            self.show_main_menu()
+            return
+        self.admin_menu_view.show()
 
     def show_new_work(self) -> None:
         """Display the New Work view."""
@@ -502,13 +523,30 @@ class AutoRBIApp(ctk.CTk):
         self.loading_overlay.update_progress(value, message)
 
     def show_user_management(self) -> None:
-        """Display the User Management view (admin only)."""
+        
+        """Display the user management view (Admin only)."""
+        logger.info("Showing user management view")
+        
+        # Verify user is admin
         if self.current_user.get("role") != "Admin":
-            messagebox.showerror(
-                "Access Denied", "Only administrators can access User Management."
+            logger.warning(
+                f"Non-admin user {self.current_user.get('username')} "
+                f"attempted to access user management"
+            )
+            self.notification_system.show_notification(
+                message="Access denied. Admin privileges required.",
+                notification_type="error",
             )
             return
+        
         self.user_management_view.show()
+    
+    def show_home_menu(self) -> None:
+        """Navigate to user's home menu (Admin Menu or Main Menu based on role)."""
+        if self.home_menu == "admin":
+            self.show_admin_menu()
+        else:
+            self.show_main_menu()
 
     # ------------------------------------------------------------------ #
     # New Work Methods

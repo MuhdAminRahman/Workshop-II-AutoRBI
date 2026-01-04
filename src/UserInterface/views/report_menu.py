@@ -791,8 +791,8 @@ class ReportMenuView:
 
         back_btn = ctk.CTkButton(
             header,
-            text="← Back to Main Menu",
-            command=self.controller.show_main_menu,
+            text="← Back",
+            command=self.controller.show_home_menu,
             width=180,
             height=32,
             font=("Segoe UI", 10),

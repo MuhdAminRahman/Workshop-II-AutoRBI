@@ -203,7 +203,7 @@ class LoginView:
                 # ====================================================================
 
                 if auth_result.get("success"):
-                    # SUCCESS - Proceed to main menu
+                    # SUCCESS - Route based on user role
 
                     self.controller.available_works = self.controller.getAssignedWorks()
 
@@ -213,7 +213,14 @@ class LoginView:
                         else None
                     )
 
-                    self.controller.show_main_menu()
+                    # Route to appropriate menu based on role
+                    user_role = self.controller.current_user.get("role")
+                    if user_role == "Admin":
+                        self.controller.home_menu = "admin"  # ← SET HOME
+                        self.controller.show_admin_menu()
+                    else:
+                        self.controller.home_menu = "main" 
+                        self.controller.show_main_menu()
 
                 else:
                     # FAILURE - Handle based on error_type

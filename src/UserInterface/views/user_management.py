@@ -359,11 +359,23 @@ class UserManagementView:
         header.grid(row=0, column=0, sticky="ew")
         header.grid_columnconfigure(0, weight=1)
 
+
+        # Determine back navigation based on user role
+        user_role = self.controller.current_user.get("role", "Engineer")
+        
+        if user_role == "Admin":
+            back_text = "← Back to Admin Menu"
+            back_command = self.controller.show_admin_menu
+        else:
+            back_text = "← Back to Main Menu"
+            back_command = self.controller.show_main_menu
+            
+        
         back_btn = ctk.CTkButton(
             header,
-            text="← Back to Main Menu",
-            command=self.controller.show_main_menu,
-            width=180,
+            text="← Back",
+            command=self.controller.show_home_menu,
+            width=200,
             height=32,
             font=("Segoe UI", 10),
             fg_color="transparent",
