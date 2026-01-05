@@ -684,3 +684,144 @@ class DatabaseService:
         except Exception as e:
             print(f"Error calculating health score for work {work_id}: {e}")
             return 0.0
+        
+# ========================================================================
+    # SYSTEM-WIDE ANALYTICS METHODS (FOR ADMIN MENU)
+    # These methods return data for ALL users (no user_id filter)
+    # ========================================================================
+
+    @staticmethod
+    def get_system_work_completion_percentage(db: Session) -> Dict[int, float]:
+        """
+        Calculate completion percentage for ALL works in system (admin view).
+        
+        Args:
+            db: Database session
+        
+        Returns:
+            Dict[int, float]: Dictionary with work_id as key and completion percentage (0-100) as value
+        """
+        try:
+            from AutoRBI_Database.database.models.work import Work
+            
+            # Get ALL works (no user filter)
+            works = db.query(Work).all()
+            
+            if not works:
+                return {}
+            
+            # Calculate completion for each work
+            completion_dict = {}
+            for work in works:
+                completion = DatabaseService._calculate_single_work_completion(db, work.work_id)
+                completion_dict[work.work_id] = completion
+            
+            return completion_dict
+            
+        except Exception as e:
+            print(f"Error calculating system work completion percentage: {e}")
+            return {}
+    
+    @staticmethod
+    def get_system_total_equipment_count(db: Session) -> int:
+        """
+        Get total equipment count across ALL works in system (admin view).
+        
+        Args:
+            db: Database session
+        
+        Returns:
+            int: Total count of all equipment
+        """
+        try:
+            # Simply count ALL equipment (no user filter)
+            total_count = db.query(DBEquipment).count()
+            return total_count
+        except Exception as e:
+            print(f"Error getting system total equipment count: {e}")
+            return 0
+    
+    @staticmethod
+    def get_system_extracted_equipment_count(db: Session) -> int:
+        """
+        Get extracted equipment count for ALL works in system (admin view).
+        
+        Args:
+            db: Database session
+        
+        Returns:
+            int: Count of extracted equipment across all works
+        """
+        try:
+            # Get ALL equipment (no user filter)
+            all_equipment = db.query(DBEquipment).filter(
+                DBEquipment.extracted_date.isnot(None)
+            ).all()
+            
+            fully_extracted_count = 0
+            
+            # Check each equipment for full extraction
+            for equipment in all_equipment:
+                # Check if equipment has extracted_date
+                if not equipment.extracted_date:
+                    continue
+                
+                # Check if equipment has components
+                components = db.query(DBComponent).filter(
+                    DBComponent.equipment_id == equipment.equipment_id
+                ).all()
+                
+                if not components:
+                    continue
+                
+                # Count as fully extracted
+                fully_extracted_count += 1
+            
+            return fully_extracted_count
+            
+        except Exception as e:
+            print(f"Error getting system extracted equipment count: {e}")
+            return 0
+    
+    @staticmethod
+    def get_system_average_health_score(db: Session) -> float:
+        """
+        Calculate average health score across ALL works in system (admin view).
+        
+        Uses the same RBI health calculation:
+        Health Score = (Extraction Rate × 0.4) + (Completeness Rate × 0.4) + (Quality Score × 0.2)
+        
+        Args:
+            db: Database session
+        
+        Returns:
+            float: Average health score (0-100) across all works
+        """
+        try:
+            from AutoRBI_Database.database.models.work import Work
+            
+            # Get ALL works (no user filter)
+            works = db.query(Work).all()
+            
+            if not works:
+                return 0.0
+            
+            total_health_score = 0
+            work_count = 0
+            
+            # Calculate health score for each work
+            for work in works:
+                work_health = DatabaseService._calculate_work_health_score(db, work.work_id)
+                if work_health > 0:  # Only count works with valid health scores
+                    total_health_score += work_health
+                    work_count += 1
+            
+            if work_count == 0:
+                return 0.0
+            
+            average_health = total_health_score / work_count
+            return round(average_health, 1)
+            
+        except Exception as e:
+            print(f"Error calculating system average health score: {e}")
+            return 0.0

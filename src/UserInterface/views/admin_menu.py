@@ -362,26 +362,24 @@ class AdminMenuView:
             action_btn.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 16))
 
     def initialize_analytics_data(self) -> Dict[str, int]:
+        """Get system-wide analytics for admin dashboard (ALL users' data)."""
         try:
             db = SessionLocal()
-             # Get all needed data
-            completed_work = DatabaseService.get_work_completion_percentage(
-                db=db, 
-                user_id=self.controller.current_user.get("id")
+            # Get SYSTEM-WIDE data (no user_id filter for admins)
+            completed_work = DatabaseService.get_system_work_completion_percentage(
+                db=db
             )
             
-            total_equipment = DatabaseService.get_total_equipment_count_for_all_works(
-                db=db, 
-                user_id=self.controller.current_user.get("id")
+            total_equipment = DatabaseService.get_system_total_equipment_count(
+                db=db
             )
             
-            extracted_equipment = DatabaseService.get_fully_extracted_equipment_count(
-                db=db, 
-                user_id=self.controller.current_user.get("id")
+            extracted_equipment = DatabaseService.get_system_extracted_equipment_count(
+                db=db
             )
             
-            # Calculate average health score
-            """"
+            # Calculate average health score across ALL works
+            """
             health score is based on these factors:
 
             Equipment completion (fields filled)
@@ -392,9 +390,8 @@ class AdminMenuView:
 
             Data quality (values are valid/complete)
             """
-            avg_health_score = DatabaseService.calculate_average_health_score(
-                db=db,
-                user_id=self.controller.current_user.get("id")
+            avg_health_score = DatabaseService.get_system_average_health_score(
+                db=db
             )
             
             # Calculate completion rate
@@ -404,15 +401,23 @@ class AdminMenuView:
             completion_rate = int(total_percentage / len(completed_work)) if completed_work else 0
             
             analytics_data = {
-                "work_completion": completion_rate if completion_rate is not None else 2,
-                "total_equipment": total_equipment if total_equipment is not None else 2,
-                "equipment_extracted": extracted_equipment if extracted_equipment is not None else 2,
-                "avg_health_score": int(avg_health_score) if avg_health_score is not None else 61,
+                "work_completion": completion_rate if completion_rate is not None else 0,
+                "total_equipment": total_equipment if total_equipment is not None else 0,
+                "equipment_extracted": extracted_equipment if extracted_equipment is not None else 0,
+                "avg_health_score": int(avg_health_score) if avg_health_score is not None else 0,
             }
             return analytics_data
         except Exception as e:
             # Log error and return zeros on failure
-            print(f"Error initializing analytics data: {e}")
+            print(f"Error initializing admin analytics data: {e}")
+            return {
+                "work_completion": 0,
+                "total_equipment": 0,
+                "equipment_extracted": 0,
+                "avg_health_score": 0,
+            }
+        finally:
+            db.close()
         
 
     def _build_embedded_analytics(self, parent, row: int):

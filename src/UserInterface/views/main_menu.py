@@ -449,15 +449,25 @@ class MainMenuView:
                 user_id=self.controller.current_user.get("id")
             )
             
+            
+            print(f"🔍 ADMIN MENU DEBUG:")
+            print(f"   completed_work = {completed_work}")
+            print(f"   Number of works = {len(completed_work)}")
+            
             total_equipment = DatabaseService.get_total_equipment_count_for_all_works(
                 db=db, 
                 user_id=self.controller.current_user.get("id")
             )
             
+            
+            print(f"total_equipment = {total_equipment}")
+            
             extracted_equipment = DatabaseService.get_fully_extracted_equipment_count(
                 db=db, 
                 user_id=self.controller.current_user.get("id")
             )
+            
+            print(f"   extracted_equipment = {extracted_equipment}")
             
             # Calculate average health score
             """"
@@ -476,11 +486,17 @@ class MainMenuView:
                 user_id=self.controller.current_user.get("id")
             )
             
+            print(f"   avg_health_score = {avg_health_score}")
+            
             # Calculate completion rate
             total_percentage = 0
             for work in completed_work.values():
                 total_percentage += work
             completion_rate = int(total_percentage / len(completed_work)) if completed_work else 0
+            
+            print(f"   Final completion_rate = {completion_rate}%")
+            print(f"   (Calculated from {len(completed_work)} works)")
+            
             
             analytics_data = {
                 "work_completion": completion_rate if completion_rate is not None else 2,

@@ -205,6 +205,49 @@ class RBIAnalyticsEngine:
             'total_corrections': total_corrections,
         }
 
+    @staticmethod
+    def get_all_works(db) -> List[Dict]:
+        """Get ALL works in system (for admins) with owner information."""
+        try:
+            from AutoRBI_Database.database.models.assign_work import AssignWork
+            from AutoRBI_Database.database.models.users import User
+            
+            # Get all works with their assigned users
+            works_query = db.query(Work).order_by(Work.created_at.desc()).all()
+            
+            work_dict = {}
+            for work in works_query:
+                if work.work_id not in work_dict:
+                    work_dict[work.work_id] = {
+                        'work_id': work.work_id,
+                        'work_name': work.work_name,
+                        'status': work.status,
+                        'created_at': work.created_at,
+                        'description': work.description or "",
+                        'owners': []
+                    }
+                
+                # Get users assigned to this work
+                assignments = db.query(User).join(
+                    AssignWork, User.user_id == AssignWork.user_id
+                ).filter(
+                    AssignWork.work_id == work.work_id
+                ).all()
+                
+                for user in assignments:
+                    owner_name = user.full_name or user.username
+                    if owner_name not in [o['name'] for o in work_dict[work.work_id]['owners']]:
+                        work_dict[work.work_id]['owners'].append({
+                            'id': user.user_id,
+                            'name': owner_name
+                        })
+            
+            return list(work_dict.values())
+            
+        except Exception as e:
+            print(f"Error getting all works: {e}")
+            return []
+
 
 class AnalyticsView:
     """RBI Analytics Dashboard - Improved CTK UI."""
@@ -217,15 +260,46 @@ class AnalyticsView:
         self.selected_work_var = ctk.StringVar(value="Select Work")
     
     def _load_user_works(self):
-        """Load all works assigned to the current user."""
+        """Load works based on user role (all works for admin, assigned works for engineer)."""
         db = SessionLocal()
         try:
+            user_role = self.controller.current_user.get("role")
+            print(f"\n=== DEBUG: _load_user_works called ===")
+            print(f"User role: {user_role}")
             user_id = self.controller.current_user.get("id")
-            if user_id:
-                engine = RBIAnalyticsEngine()
-                self.user_works = engine.get_user_works(db, user_id)
-                
-                if hasattr(self, 'work_dropdown'):
+            
+            engine = RBIAnalyticsEngine()
+            
+            if user_role == "Admin":
+                # Admin sees ALL works with owner information
+                self.user_works = engine.get_all_works(db)
+            else:
+                # Engineer sees only assigned works
+                if user_id:
+                    self.user_works = engine.get_user_works(db, user_id)
+            
+            if hasattr(self, 'work_dropdown'):
+                if user_role == "Admin" and self.user_works:
+                    # Show work name with owner(s) for admins
+                    work_names = ["Select Work"]
+                    for work in self.user_works:
+                        print(f"  Processing work: {work.get('work_name')}")
+                        print(f"    owners field: {work.get('owners')}")
+                        print(f"    owners type: {type(work.get('owners'))}")
+                        print(f"    owners length: {len(work.get('owners')) if work.get('owners') else 'N/A'}")
+                        print(f"    bool check: {bool(work.get('owners'))}")
+                        
+                        if work.get('owners') and len(work['owners']) > 0:
+                            owner_names = ', '.join([o['name'] for o in work['owners']])
+                            formatted = f"{work['work_name']} ({owner_names})"
+                            work_names.append(formatted)
+                            print(f"    ✓ Added WITH owners: {formatted}")
+                        else:
+                            work_names.append(work['work_name'])
+                            print(f"    ✓ Added WITHOUT owners: {work['work_name']}")
+                    self.work_dropdown.configure(values=work_names)
+                else:
+                    # Show work name only for engineers
                     work_names = ["Select Work"] + [work['work_name'] for work in self.user_works]
                     self.work_dropdown.configure(values=work_names)
         finally:
@@ -233,6 +307,7 @@ class AnalyticsView:
     
     def _refresh_data(self, work_id: int):
         """Fetch analytics for specific work from database."""
+        print(f"🔍 REFRESHING DATA for work_id={work_id}")
         db = SessionLocal()
         try:
             engine = RBIAnalyticsEngine()
@@ -247,16 +322,45 @@ class AnalyticsView:
     
     def _on_work_selected(self, choice):
         """Handle work selection from dropdown."""
+        print(f"\n=== DEBUG: _on_work_selected called ===")
+        print(f"Choice selected: '{choice}'")
+        print(f"User works count: {len(self.user_works) if self.user_works else 0}")
+        
         if choice == "Select Work" or not self.user_works:
             self.current_work_id = None
             self._clear_analytics_display()
             return
         
+        user_role = self.controller.current_user.get("role")
+        print(f"User role: {user_role}")
+        
+        match_found = False
         for work in self.user_works:
-            if work['work_name'] == choice:
-                self.current_work_id = work['work_id']
-                self._display_analytics(self.current_work_id)
-                break
+            # For admin, dropdown includes owner name, so we need to match differently
+            if user_role == "Admin":
+                # For admin, match work name directly (dropdown shows work names only)
+                work_name = work.get('work_name', '')
+                
+                print(f"  Comparing: '{work_name}' == '{choice}' -> {work_name == choice}")
+                
+                if work_name == choice:
+                    print(f"✓ MATCH FOUND! work_id={work['work_id']}")
+                    self.current_work_id = work['work_id']
+                    self._display_analytics(self.current_work_id)
+                    match_found = True
+                    break
+            else:
+                # For engineer, simple work name match
+                print(f"  Comparing: '{work['work_name']}' == '{choice}' -> {work['work_name'] == choice}")
+                if work['work_name'] == choice:
+                    print(f"✓ MATCH FOUND! work_id={work['work_id']}")
+                    self.current_work_id = work['work_id']
+                    self._display_analytics(self.current_work_id)
+                    match_found = True
+                    break
+        
+        if not match_found:
+            print(f"✗ NO MATCH FOUND for choice: '{choice}'")
     
     def _clear_analytics_display(self):
         """Clear the analytics display area."""
@@ -274,7 +378,13 @@ class AnalyticsView:
     
     def _display_analytics(self, work_id: int):
         """Display analytics for the selected work."""
+        print(f"\n=== DEBUG: _display_analytics called with work_id={work_id} ===")
         data = self._refresh_data(work_id)
+        print(f"Data retrieved: {data is not None}")
+        
+        if data and 'health' in data:
+            print(f"Health data keys: {list(data['health'].keys())}")
+            print(f"Health data: {data['health']}")
         
         if not data:
             return
@@ -345,17 +455,17 @@ class AnalyticsView:
         
         status_label = ctk.CTkLabel(
             left_frame,
-            text=health['risk_level'].split(' - ')[0],
+            text=health.get('risk_level', 'Unknown').split(' - ')[0],
             font=("Segoe UI", 11, "bold"),
-            text_color=health['status_color'],
+            text_color=health.get('status_color', 'gray'),
         )
         status_label.pack()
         
         score_label = ctk.CTkLabel(
             left_frame,
-            text=f"{health['health_score']}",
+            text=f"{health.get('health_score', 0)}",
             font=("Segoe UI", 48, "bold"),
-            text_color=health['status_color'],
+            text_color=health.get('status_color', 'gray'),
         )
         score_label.pack()
         
@@ -374,9 +484,9 @@ class AnalyticsView:
         
         # Metric boxes
         metrics = [
-            ("Data Extraction", f"{health['extraction_rate']}%", "#3498db"),
-            ("Critical Fields", f"{health['completeness_rate']}%", "#9b59b6"),
-            ("Equipment", f"{health['extracted_equipment']}/{health['total_equipment']}", "#1abc9c"),
+            ("Data Extraction", f"{health.get('extraction_rate', 0)}%", "#3498db"),
+            ("Critical Fields", f"{health.get('completeness_rate', 0)}%", "#9b59b6"),
+            ("Equipment", f"{health.get('extracted_equipment', 0)}/{health.get('total_equipment', 0)}", "#1abc9c"),
         ]
         
         for i, (label, value, color) in enumerate(metrics):
