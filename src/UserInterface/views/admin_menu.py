@@ -311,6 +311,14 @@ class AdminMenuView:
             "Manage user accounts, roles, and access permissions.",
             self.controller.show_user_management,
         ))
+        
+        # Work Assignment card (Admin only - NEW!)
+        menu_buttons.append((
+            "📋 Work Assignment",
+            "Create works and assign engineers to projects.",
+            self.controller.show_work_management,
+        ))
+
 
         # Create "cards" with button and description
         for idx, (title, description, command) in enumerate(menu_buttons):

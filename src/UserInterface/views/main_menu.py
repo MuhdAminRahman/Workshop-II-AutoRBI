@@ -12,6 +12,7 @@ import shutil
 from UserInterface.services.database_service import DatabaseService
 from AutoRBI_Database.database.session import SessionLocal
 
+
 class MainMenuView:
     """Handles the main menu interface."""
 
@@ -443,32 +444,19 @@ class MainMenuView:
     def initialize_analytics_data(self) -> Dict[str, int]:
         try:
             db = SessionLocal()
-             # Get all needed data
+            # Get all needed data
             completed_work = DatabaseService.get_work_completion_percentage(
-                db=db, 
-                user_id=self.controller.current_user.get("id")
+                db=db, user_id=self.controller.current_user.get("id")
             )
-            
-            
-            print(f"🔍 ADMIN MENU DEBUG:")
-            print(f"   completed_work = {completed_work}")
-            print(f"   Number of works = {len(completed_work)}")
-            
+
             total_equipment = DatabaseService.get_total_equipment_count_for_all_works(
-                db=db, 
-                user_id=self.controller.current_user.get("id")
+                db=db, user_id=self.controller.current_user.get("id")
             )
-            
-            
-            print(f"total_equipment = {total_equipment}")
-            
+
             extracted_equipment = DatabaseService.get_fully_extracted_equipment_count(
-                db=db, 
-                user_id=self.controller.current_user.get("id")
+                db=db, user_id=self.controller.current_user.get("id")
             )
-            
-            print(f"   extracted_equipment = {extracted_equipment}")
-            
+
             # Calculate average health score
             """"
             health score is based on these factors:
@@ -482,33 +470,35 @@ class MainMenuView:
             Data quality (values are valid/complete)
             """
             avg_health_score = DatabaseService.calculate_average_health_score(
-                db=db,
-                user_id=self.controller.current_user.get("id")
+                db=db, user_id=self.controller.current_user.get("id")
             )
-            
-            print(f"   avg_health_score = {avg_health_score}")
-            
+
             # Calculate completion rate
             total_percentage = 0
             for work in completed_work.values():
                 total_percentage += work
-            completion_rate = int(total_percentage / len(completed_work)) if completed_work else 0
-            
-            print(f"   Final completion_rate = {completion_rate}%")
-            print(f"   (Calculated from {len(completed_work)} works)")
-            
-            
+            completion_rate = (
+                int(total_percentage / len(completed_work)) if completed_work else 0
+            )
+
             analytics_data = {
-                "work_completion": completion_rate if completion_rate is not None else 2,
-                "total_equipment": total_equipment if total_equipment is not None else 2,
-                "equipment_extracted": extracted_equipment if extracted_equipment is not None else 2,
-                "avg_health_score": int(avg_health_score) if avg_health_score is not None else 61,
+                "work_completion": (
+                    completion_rate if completion_rate is not None else 2
+                ),
+                "total_equipment": (
+                    total_equipment if total_equipment is not None else 2
+                ),
+                "equipment_extracted": (
+                    extracted_equipment if extracted_equipment is not None else 2
+                ),
+                "avg_health_score": (
+                    int(avg_health_score) if avg_health_score is not None else 61
+                ),
             }
             return analytics_data
         except Exception as e:
             # Log error and return zeros on failure
             print(f"Error initializing analytics data: {e}")
-        
 
     def _build_embedded_analytics(self, parent, row: int):
         """Embedded analytics overview in main menu with simplified metrics."""
@@ -544,9 +534,11 @@ class MainMenuView:
 
         # ========== BACKEND INTEGRATION ==========
         analytics_data = self.initialize_analytics_data()
-        
+
         # Placeholder data for demonstration (REMOVE WHEN BACKEND IS IMPLEMENTED)
-        work_completion = analytics_data["work_completion"]  # % of work completed/total work
+        work_completion = analytics_data[
+            "work_completion"
+        ]  # % of work completed/total work
         equipment_extracted = analytics_data["equipment_extracted"]  # number extracted
         total_equipment = analytics_data["total_equipment"]  # total equipment
         avg_health_score = analytics_data["avg_health_score"]  # average health score

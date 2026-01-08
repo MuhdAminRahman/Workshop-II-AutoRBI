@@ -37,6 +37,7 @@ from UserInterface.views import (
     SettingsView,
     ProfileView,
     UserManagementView,
+    WorkManagementView,
 )
 from UserInterface.components import NotificationSystem, LoadingOverlay
 
@@ -107,6 +108,8 @@ class AutoRBIApp(ctk.CTk):
         # Admin views
         self.user_management_view = UserManagementView(self, self)
         self.admin_menu_view = AdminMenuView(self, self)
+        
+        self.work_management_view = None
 
         # TEMP current user info (your code had this stub)
         self.current_user = {
@@ -540,6 +543,37 @@ class AutoRBIApp(ctk.CTk):
             return
         
         self.user_management_view.show()
+        
+    def show_work_management(self) -> None:
+        """Display the work management view (Admin only)."""
+        logger.info("Showing work management view")
+        
+        # Verify user is admin
+        if self.current_user.get("role") != "Admin":
+            logger.warning(
+                f"Non-admin user {self.current_user.get('username')} "
+                f"attempted to access work management"
+            )
+            self.notification_system.show_notification(
+                message="Access denied. Admin privileges required.",
+                notification_type="error",
+            )
+            return
+        
+        # Initialize view if needed (lazy loading)
+        if self.work_management_view is None:
+            self.work_management_view = WorkManagementView(self, self)
+        
+        # Show the view
+        logger.info(f"Admin {self.current_user.get('username')} accessed work management")
+        self.work_management_view.show()
+    
+    def show_home_menu(self) -> None:
+        """Navigate to user's home menu (Admin Menu or Main Menu based on role)."""
+        if self.home_menu == "admin":
+            self.show_admin_menu()
+        else:
+            self.show_main_menu()
     
     def show_home_menu(self) -> None:
         """Navigate to user's home menu (Admin Menu or Main Menu based on role)."""

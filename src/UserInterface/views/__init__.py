@@ -14,6 +14,8 @@ from .page_builders import Page1Builder, Page2Builder
 from .ui_updater import UIUpdateManager
 from .user_management import UserManagementView
 from .admin_menu import AdminMenuView
+from .work_management_view import WorkManagementView
+from .work_assignment_dialog import WorkAssignmentDialog
 
 
 __all__ = [
@@ -33,8 +35,10 @@ __all__ = [
     "TableColumns",
     "Page1Builder",
     "Page2Builder",
-    "UIUpdateManager"
+    "UIUpdateManager",
     "UserManagementView",
     "AdminMenuView",
+    "WorkManagementView",
+    "WorkAssignmentDialog",
 ]
 
