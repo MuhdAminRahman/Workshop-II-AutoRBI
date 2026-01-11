@@ -40,7 +40,6 @@ class WorkAssignmentDialog(ctk.CTkToplevel):
         self.engineer_vars: Dict[int, ctk.BooleanVar] = {}
         self.search_var = ctk.StringVar()
         self.search_timer = None
-        self.preserved_selections = {}
         self.search_var.trace_add("write", self._on_search_changed)
         
 
@@ -220,7 +219,7 @@ class WorkAssignmentDialog(ctk.CTkToplevel):
         for widget in self.engineers_frame.winfo_children():
             widget.destroy()
 
-        self.engineer_vars.clear()
+        # Don't clear engineer_vars - keep selections across searches
 
         # Filter engineers
         filter_lower = filter_text.lower()
@@ -253,10 +252,13 @@ class WorkAssignmentDialog(ctk.CTkToplevel):
             )
             eng_frame.pack(fill="x", pady=2, padx=4)
 
-            # Checkbox variable
-            var = ctk.BooleanVar(value=False)
-            self.engineer_vars[engineer_id] = var
-            var.trace_add("write", lambda *args: self._update_selection_count())
+            # Checkbox variable - reuse existing or create new
+            if engineer_id not in self.engineer_vars:
+                var = ctk.BooleanVar(value=False)
+                self.engineer_vars[engineer_id] = var
+                var.trace_add("write", lambda *args: self._update_selection_count())
+            else:
+                var = self.engineer_vars[engineer_id]
 
             # Checkbox
             checkbox = ctk.CTkCheckBox(
@@ -303,25 +305,13 @@ class WorkAssignmentDialog(ctk.CTkToplevel):
     def _perform_search(self):
         """Perform the actual search after debounce delay."""
         search_text = self.search_var.get()
-        self._save_selection_state()
+        # Populate list - selections are preserved automatically via engineer_vars
         self._populate_engineers_list(search_text)
-        self._restore_selection_state()
 
     def _update_selection_count(self):
         """Update the selection counter label."""
         selected_count = sum(1 for var in self.engineer_vars.values() if var.get())
         self.selection_label.configure(text=f"Selected: {selected_count} engineer(s)")
-    
-    def _save_selection_state(self):
-        """Save current checkbox selections."""
-        for user_id, var in self.engineer_vars.items():
-            self.preserved_selections[user_id] = var.get()
-    
-    def _restore_selection_state(self):
-        """Restore checkbox selections from saved state."""
-        for user_id, var in self.engineer_vars.items():
-            if user_id in self.preserved_selections:
-                var.set(self.preserved_selections[user_id])
 
     def _validate_inputs(self) -> bool:
         """
@@ -406,8 +396,9 @@ class WorkAssignmentDialog(ctk.CTkToplevel):
             messagebox.showerror("Error", f"Unexpected error: {str(e)}")
             logger.error(f"Unexpected error creating work: {str(e)}")
         finally:
-            # Re-enable button
-            self.create_btn.configure(state="normal", text="Create & Assign")
+            # Re-enable button only if dialog still exists
+            if self.winfo_exists():
+                self.create_btn.configure(state="normal", text="Create & Assign")
 
     def _on_cancel(self):
         """Handle cancel button click."""

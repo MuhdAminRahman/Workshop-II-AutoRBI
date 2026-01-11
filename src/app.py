@@ -568,13 +568,159 @@ class AutoRBIApp(ctk.CTk):
         logger.info(f"Admin {self.current_user.get('username')} accessed work management")
         self.work_management_view.show()
     
-    def show_home_menu(self) -> None:
-        """Navigate to user's home menu (Admin Menu or Main Menu based on role)."""
-        if self.home_menu == "admin":
-            self.show_admin_menu()
-        else:
-            self.show_main_menu()
+    # ========================================================================
+    # WORK MANAGEMENT CONTROLLER METHODS
+    # ========================================================================
     
+    def get_all_works_with_assignments(
+        self,
+        page: int = 1,
+        per_page: int = 20,
+        search_text: str = None,
+        status_filter: str = None
+    ) -> dict:
+        """
+        Get all works with their assignments (paginated and filtered).
+
+        Args:
+            page: Page number (1-indexed)
+            per_page: Items per page
+            search_text: Optional search text for work name or description
+            status_filter: Optional status filter (database value like "In progress" or "Completed")
+
+        Returns:
+            Dictionary with works data and pagination info
+        """
+        from AutoRBI_Database.services.work_assignment_service import get_all_works_with_assignments
+
+        logger.info(f"Controller: Fetching works (page {page}, search='{search_text}', status='{status_filter}')")
+
+        db = SessionLocal()
+        try:
+            works = get_all_works_with_assignments(db)
+
+            # Apply filters
+            filtered_works = []
+            for work_data in works:
+                work = work_data["work"]
+
+                # Apply status filter
+                if status_filter and work["status"] != status_filter:
+                    continue
+
+                # Apply search filter
+                if search_text:
+                    search_lower = search_text.lower()
+                    work_name = work["work_name"].lower()
+                    description = (work.get("description") or "").lower()
+                    if search_lower not in work_name and search_lower not in description:
+                        continue
+
+                filtered_works.append(work_data)
+
+            # Manual pagination
+            total = len(filtered_works)
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            paginated_works = filtered_works[start_idx:end_idx]
+
+            return {
+                "success": True,
+                "data": paginated_works,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": total,
+                    "total_pages": (total + per_page - 1) // per_page if total > 0 else 1,
+                }
+            }
+        except Exception as e:
+            logger.error(f"Controller: Error fetching works: {e}")
+            return {
+                "success": False,
+                "message": str(e),
+                "data": [],
+                "pagination": {"page": 1, "per_page": per_page, "total": 0, "total_pages": 1}
+            }
+        finally:
+            db.close()
+    
+    def get_all_engineers(self) -> list:
+        """Get all active engineers for assignment."""
+        from AutoRBI_Database.services.work_assignment_service import get_all_engineers
+        
+        logger.info("Controller: Fetching engineers list")
+        
+        db = SessionLocal()
+        try:
+            return get_all_engineers(db)
+        except Exception as e:
+            logger.error(f"Controller: Error fetching engineers: {e}")
+            return []
+        finally:
+            db.close()
+    
+    def update_work_assignments(
+        self, 
+        work_id: int, 
+        user_ids_to_add: list = None, 
+        user_ids_to_remove: list = None
+    ) -> dict:
+        """Update work assignments."""
+        from AutoRBI_Database.services.work_assignment_service import update_work_assignments
+        
+        logger.info(f"Controller: Updating assignments for work {work_id}")
+        
+        db = SessionLocal()
+        try:
+            result = update_work_assignments(
+                db, work_id, user_ids_to_add, user_ids_to_remove
+            )
+            return {"success": True, "data": result}
+        except Exception as e:
+            logger.error(f"Controller: Error updating assignments: {e}")
+            return {"success": False, "message": str(e)}
+        finally:
+            db.close()
+    
+    def update_work_info(
+        self,
+        work_id: int,
+        work_name: str = None,
+        description: str = None,
+        status: str = None
+    ) -> dict:
+        """Update work information."""
+        from AutoRBI_Database.services.work_assignment_service import update_work_info
+        
+        logger.info(f"Controller: Updating work info for {work_id}")
+        
+        db = SessionLocal()
+        try:
+            result = update_work_info(db, work_id, work_name, description, status)
+            return {"success": True, "data": result}
+        except Exception as e:
+            logger.error(f"Controller: Error updating work: {e}")
+            return {"success": False, "message": str(e)}
+        finally:
+            db.close()
+    
+    def delete_work(self, work_id: int) -> dict:
+        """Delete a work and its assignments."""
+        from AutoRBI_Database.services.work_assignment_service import delete_work_and_assignments
+        
+        logger.info(f"Controller: Deleting work {work_id}")
+        
+        db = SessionLocal()
+        try:
+            delete_work_and_assignments(db, work_id)
+            return {"success": True}
+        except Exception as e:
+            logger.error(f"Controller: Error deleting work: {e}")
+            return {"success": False, "message": str(e)}
+        finally:
+            db.close()
+
     def show_home_menu(self) -> None:
         """Navigate to user's home menu (Admin Menu or Main Menu based on role)."""
         if self.home_menu == "admin":

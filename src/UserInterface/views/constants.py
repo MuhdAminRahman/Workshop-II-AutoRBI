@@ -90,3 +90,42 @@ class TableColumns:
     @classmethod
     def get_column_widths(cls) -> List[int]:
         return [col[1] for col in cls.COLUMNS]
+
+
+# =============================================================================
+# WORK MANAGEMENT CONSTANTS
+# =============================================================================
+
+# Column width ratios for work list table
+WORK_TABLE_COLUMNS = {
+    "work_name": {"header": "Work Name", "width": 0.35},
+    "status": {"header": "Status", "width": 0.15},
+    "engineers": {"header": "Engineers", "width": 0.20},
+    "created": {"header": "Created", "width": 0.20},
+    "actions": {"header": "Actions", "width": 0.10},
+}
+
+# Work status values (must match database enum exactly)
+WORK_STATUS = {
+    "IN_PROGRESS": "In progress",  # Database value
+    "COMPLETED": "Completed",       # Database value
+}
+
+# Filter display values mapped to database values
+WORK_STATUS_FILTER_MAP = {
+    "All": None,
+    "In Progress": "In progress",  # Display -> Database
+    "Completed": "Completed",
+}
+
+# UI dimension constants
+WORK_ROW_HEIGHT = 60
+WORK_NAME_MAX_LENGTH = 27
+WORK_NAME_TRUNCATE_LENGTH = 24
+
+# Dialog dimensions
+DIALOG_EDIT_ASSIGNMENTS = {"width": 500, "height": 600}
+DIALOG_EDIT_WORK_INFO = {"width": 550, "height": 500}
+
+# Pagination
+WORKS_PER_PAGE = 20

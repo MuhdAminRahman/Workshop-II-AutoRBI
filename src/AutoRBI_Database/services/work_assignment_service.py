@@ -235,25 +235,44 @@ class WorkAssignmentService:
     def get_all_works_with_assignments(db: Session) -> List[Dict]:
         """
         Get all works with their assigned engineers.
-        
+        Optimized to reduce database queries using batch operations.
+
         Args:
             db: Database session
-            
+
         Returns:
             List of works with assignment details
         """
         try:
+            # Get all works
             all_works = work_crud.get_all_works(db)
-            
+
+            # Get all assignments in one query
+            all_assignments = db.query(AssignWork).all()
+
+            # Get all users in one query
+            all_users = user_crud.get_all_users(db)
+
+            # Build lookup dictionaries for O(1) access
+            user_lookup = {user.user_id: user for user in all_users}
+
+            # Group assignments by work_id
+            assignments_by_work = {}
+            for assignment in all_assignments:
+                if assignment.work_id not in assignments_by_work:
+                    assignments_by_work[assignment.work_id] = []
+                assignments_by_work[assignment.work_id].append(assignment)
+
+            # Build works data
             works_data = []
             for work in all_works:
-                # Get assignments for this work
-                assignments = assign_work_crud.get_engineers_for_work(db, work.work_id)
-                
-                # Get engineer details
+                # Get assignments for this work from pre-loaded data
+                work_assignments = assignments_by_work.get(work.work_id, [])
+
+                # Get engineer details from pre-loaded users
                 assigned_engineers = []
-                for assignment in assignments:
-                    user = user_crud.get_user_by_id(db, assignment.user_id)
+                for assignment in work_assignments:
+                    user = user_lookup.get(assignment.user_id)
                     if user:
                         assigned_engineers.append({
                             "user_id": user.user_id,
@@ -262,7 +281,7 @@ class WorkAssignmentService:
                             "email": user.email,
                             "assigned_at": assignment.assigned_at
                         })
-                
+
                 works_data.append({
                     "work": {
                         "work_id": work.work_id,
@@ -276,13 +295,13 @@ class WorkAssignmentService:
                     "assigned_engineers": assigned_engineers,
                     "assignment_count": len(assigned_engineers)
                 })
-            
+
             # Sort by creation date (newest first)
             works_data.sort(key=lambda x: x["work"]["created_at"], reverse=True)
-            
-            logger.info(f"Retrieved {len(works_data)} works with assignments")
+
+            logger.info(f"Retrieved {len(works_data)} works with assignments (optimized: 3 queries)")
             return works_data
-            
+
         except SQLAlchemyError as e:
             logger.error(f"Database error fetching works: {str(e)}")
             raise DatabaseError(f"Failed to fetch works: {str(e)}")
@@ -481,11 +500,20 @@ class WorkAssignmentService:
             
             if description is not None:
                 updates["description"] = description
-            
+
+            # Validate and update status
+            if status is not None:
+                # Validate status is one of the allowed values
+                valid_statuses = ["In progress", "Completed"]
+                if status not in valid_statuses:
+                    raise ValidationError(
+                        f"Invalid status '{status}'. Must be one of: {', '.join(valid_statuses)}"
+                    )
+
             # Update work info
             if updates:
                 work_crud.update_work_info(db, work_id, updates)
-            
+
             # Update status separately if provided
             if status is not None:
                 work_crud.update_work_status(db, work_id, status)
