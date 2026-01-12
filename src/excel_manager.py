@@ -17,7 +17,7 @@ class ExcelManager:
         self.wb = None
         self._is_loaded = False
         self.equipment_map: Dict[str, Equipment] = {}
-        self.default_path = "src/output_files"
+        self.default_path = "output_files"
         self.log_callback = log_callback
         self.basefilename = None
     
