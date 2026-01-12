@@ -495,8 +495,12 @@ class AutoRBIApp(ctk.CTk):
         self.analytics_view = AnalyticsView(self, self)
         self.analytics_view.show()
 
-    def show_admin_analytics(self) -> None:
-        """Display the Admin Analytics Dashboard view (Admin only)."""
+    def show_admin_analytics(self, selected_user_id: int = None) -> None:
+        """Display the Admin Analytics Dashboard view (Admin only).
+
+        Args:
+            selected_user_id: Optional user ID to show details for specific user
+        """
         logger.info("Showing admin analytics dashboard")
 
         # Verify user is admin
@@ -512,7 +516,7 @@ class AutoRBIApp(ctk.CTk):
             self.show_main_menu()
             return
 
-        self.admin_analytics_view.show()
+        self.admin_analytics_view.show(selected_user_id=selected_user_id)
 
     def show_settings(self) -> None:
         """Display the Settings view."""

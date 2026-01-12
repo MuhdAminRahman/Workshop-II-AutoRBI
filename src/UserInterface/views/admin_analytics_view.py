@@ -21,8 +21,16 @@ class AdminAnalyticsView:
         self.current_period = "last_7_days"
         self.selected_user_id = None
 
-    def show(self) -> None:
-        """Display Admin Analytics Dashboard."""
+    def show(self, selected_user_id: Optional[int] = None) -> None:
+        """Display Admin Analytics Dashboard.
+
+        Args:
+            selected_user_id: If provided, show details for this specific user
+        """
+        # Store selected user ID
+        if selected_user_id is not None:
+            self.selected_user_id = selected_user_id
+
         # Clear parent
         for widget in self.parent.winfo_children():
             widget.destroy()
@@ -49,8 +57,13 @@ class AdminAnalyticsView:
         self.content_container.grid(row=2, column=0, sticky="nsew")
         self.content_container.grid_columnconfigure(0, weight=1)
 
-        # Load initial data
-        self._load_team_analytics()
+        # Load initial data - if selected_user_id provided, go directly to user details
+        if self.selected_user_id is not None:
+            self._show_user_details(self.selected_user_id)
+            # Reset after showing
+            self.selected_user_id = None
+        else:
+            self._load_team_analytics()
 
     def _build_header(self, parent):
         """Build header with title and back button."""
@@ -404,10 +417,21 @@ class AdminAnalyticsView:
         title.grid(row=0, column=0, columnspan=3, sticky="w", padx=24, pady=(20, 16))
 
         # Row 1 metrics
+        # Format duration: show minutes if < 1 hour, otherwise show hours
+        duration_hours = user_data.get('total_duration_hours', 0)
+        duration_minutes = user_data.get('total_duration_minutes', 0)
+
+        if duration_hours < 1 and duration_minutes > 0:
+            duration_display = f"{duration_minutes:.0f} min"
+        elif duration_hours >= 1:
+            duration_display = f"{duration_hours:.1f} hrs"
+        else:
+            duration_display = "0 min"
+
         metrics_row1 = [
             ("Total Actions", user_data.get("total_actions", 0), "#3498db"),
             ("Equipment Extracted", user_data.get("equipment_extracted", 0), "#2ecc71"),
-            ("Duration", f"{user_data.get('duration_hours', 0):.1f} hrs", "#9b59b6"),
+            ("Duration", duration_display, "#9b59b6"),
         ]
 
         for i, (label, value, color) in enumerate(metrics_row1):

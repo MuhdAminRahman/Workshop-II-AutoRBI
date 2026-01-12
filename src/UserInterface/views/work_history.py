@@ -135,6 +135,16 @@ class WorkHistoryView:
         if history_id:
             self.controller.delete_work_history(history_id)
 
+    def _view_user_analytics(self, user_id: int) -> None:
+        """Navigate to user analytics page for the selected user (Admin only)."""
+        if user_id:
+            self.controller.show_admin_analytics(selected_user_id=user_id)
+        else:
+            messagebox.showwarning(
+                "No User ID",
+                "Cannot view analytics: User ID not available."
+            )
+
     def _previous_page(self) -> None:
         """Navigate to previous page"""
         if self.current_page > 1:
@@ -163,6 +173,7 @@ class WorkHistoryView:
         timestamp = item.get("timestamp", "-")
         work_id = item.get("work_id", "-")
         user_full_name = item.get("user_full_name", "-")  # NEW: User column
+        user_id = item.get("user_id", None)  # NEW: User ID for analytics navigation
         equipment_name = item.get("equipment_name", "-")
 
         # Table row frame - FIXED HEIGHT
@@ -184,7 +195,7 @@ class WorkHistoryView:
         row_frame.grid_columnconfigure(4, weight=0, minsize=130)  # Action Type
         row_frame.grid_columnconfigure(5, weight=1, minsize=180)  # Description
         row_frame.grid_columnconfigure(6, weight=0, minsize=150)  # Timestamp
-        row_frame.grid_columnconfigure(7, weight=0, minsize=100)  # Actions (Delete only)
+        row_frame.grid_columnconfigure(7, weight=0, minsize=180)  # Actions (Analytics + Delete for admin)
 
         # Column 0: No.
         no_label = ctk.CTkLabel(
@@ -262,12 +273,24 @@ class WorkHistoryView:
         )
         time_label.grid(row=0, column=6, sticky="nsew", padx=8, pady=12)
 
-        # Column 7: Actions (Delete button - ADMIN ONLY)
+        # Column 7: Actions (Analytics + Delete buttons - ADMIN ONLY)
         actions_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
         actions_frame.grid(row=0, column=7, sticky="nsew", padx=8, pady=12)
 
         if is_admin:
-            # Show delete button only for Admin
+            # Show View Analytics button and Delete button for Admin
+            analytics_btn = ctk.CTkButton(
+                actions_frame,
+                text="📊",
+                width=36,
+                height=32,
+                font=("Segoe UI", 14),
+                fg_color=("#3498db", "#2980b9"),
+                hover_color=("#2980b9", "#21618c"),
+                command=lambda uid=user_id: self._view_user_analytics(uid),
+            )
+            analytics_btn.pack(side="left", padx=(0, 6))
+
             delete_btn = ctk.CTkButton(
                 actions_frame,
                 text="Delete",
@@ -278,7 +301,7 @@ class WorkHistoryView:
                 hover_color=("#c0392b", "#a93226"),
                 command=lambda i=item: self._delete_work(i),
             )
-            delete_btn.pack(expand=True)
+            delete_btn.pack(side="left")
         else:
             # Show disabled state or empty for Engineers
             no_action_label = ctk.CTkLabel(
@@ -417,7 +440,7 @@ class WorkHistoryView:
         header_row.grid_columnconfigure(4, weight=0, minsize=130)  # Action Type
         header_row.grid_columnconfigure(5, weight=1, minsize=180)  # Description
         header_row.grid_columnconfigure(6, weight=0, minsize=150)  # Timestamp
-        header_row.grid_columnconfigure(7, weight=0, minsize=100)  # Actions
+        header_row.grid_columnconfigure(7, weight=0, minsize=180)  # Actions
 
         headers = [
             "No.",
@@ -449,10 +472,10 @@ class WorkHistoryView:
         self.table_body.grid_columnconfigure(1, weight=0, minsize=90)  # Work ID
         self.table_body.grid_columnconfigure(2, weight=0, minsize=130)  # User (NEW)
         self.table_body.grid_columnconfigure(3, weight=0, minsize=110)  # Equipment
-        self.table_body.grid_columnconfigure(3, weight=0, minsize=140)  # Action Type
-        self.table_body.grid_columnconfigure(4, weight=1, minsize=200)  # Description
-        self.table_body.grid_columnconfigure(5, weight=0, minsize=150)  # Timestamp
-        self.table_body.grid_columnconfigure(6, weight=0, minsize=100)  # Actions
+        self.table_body.grid_columnconfigure(4, weight=0, minsize=130)  # Action Type
+        self.table_body.grid_columnconfigure(5, weight=1, minsize=180)  # Description
+        self.table_body.grid_columnconfigure(6, weight=0, minsize=150)  # Timestamp
+        self.table_body.grid_columnconfigure(7, weight=0, minsize=180)  # Actions
 
         # Initially show hint
         hint_label = ctk.CTkLabel(

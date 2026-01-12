@@ -70,9 +70,12 @@ def get_user_activity_summary(
     last_action = timestamps.last_action
 
     # Calculate total work duration (time between first and last action)
+    # Show in minutes if less than 1 hour to avoid showing 0.0
     total_duration_hours = 0
+    total_duration_minutes = 0
     if first_action and last_action:
         duration = last_action - first_action
+        total_duration_minutes = round(duration.total_seconds() / 60, 2)
         total_duration_hours = round(duration.total_seconds() / 3600, 2)
 
     # Count unique works the user has worked on
@@ -81,9 +84,11 @@ def get_user_activity_summary(
         .scalar()
     )
 
-    # Count equipment processed (distinct equipment_id with action_type='extract')
+    # Count equipment processed (distinct equipment_id with action_type='extract_equipment')
+    # Note: 'extract' is logged without equipment_id (overall extraction action)
+    # 'extract_equipment' is logged PER equipment with equipment_id
     equipment_extracted = (
-        query.filter(WorkHistory.action_type == "extract")
+        query.filter(WorkHistory.action_type == "extract_equipment")
         .filter(WorkHistory.equipment_id.isnot(None))
         .with_entities(func.count(func.distinct(WorkHistory.equipment_id)))
         .scalar()
@@ -92,10 +97,33 @@ def get_user_activity_summary(
     # Count corrections made
     corrections_made = query.filter(WorkHistory.action_type == "correct").count()
 
-    # Average time per equipment (if we have extract actions)
+    # Calculate average time per equipment more accurately
+    # Strategy: Calculate time between consecutive extract_equipment actions
     avg_time_per_equipment = 0
-    if equipment_extracted > 0 and total_duration_hours > 0:
-        avg_time_per_equipment = round((total_duration_hours * 60) / equipment_extracted, 2)  # in minutes
+    if equipment_extracted > 0:
+        # Get all extract_equipment timestamps ordered by time
+        extract_timestamps = (
+            query.filter(WorkHistory.action_type == "extract_equipment")
+            .filter(WorkHistory.equipment_id.isnot(None))
+            .with_entities(WorkHistory.timestamp)
+            .order_by(WorkHistory.timestamp)
+            .all()
+        )
+
+        if len(extract_timestamps) > 1:
+            # Calculate average time between consecutive extractions
+            total_intervals = 0
+            for i in range(1, len(extract_timestamps)):
+                interval = (extract_timestamps[i][0] - extract_timestamps[i-1][0]).total_seconds() / 60
+                # Cap intervals at 60 minutes to exclude long breaks
+                if interval <= 60:
+                    total_intervals += interval
+
+            if total_intervals > 0:
+                avg_time_per_equipment = round(total_intervals / (len(extract_timestamps) - 1), 2)
+        elif len(extract_timestamps) == 1 and total_duration_minutes > 0:
+            # Only one equipment, use total duration (but cap at reasonable value)
+            avg_time_per_equipment = min(total_duration_minutes, 60)
 
     return {
         "user_id": user_id,
@@ -104,6 +132,7 @@ def get_user_activity_summary(
         "first_action": first_action.isoformat() if first_action else None,
         "last_action": last_action.isoformat() if last_action else None,
         "total_duration_hours": total_duration_hours,
+        "total_duration_minutes": total_duration_minutes,
         "total_works": total_works,
         "equipment_extracted": equipment_extracted,
         "corrections_made": corrections_made,
@@ -152,6 +181,7 @@ def get_team_performance_comparison(
             "corrections_made": summary["corrections_made"],
             "avg_time_per_equipment_minutes": summary["avg_time_per_equipment_minutes"],
             "total_duration_hours": summary["total_duration_hours"],
+            "total_duration_minutes": summary.get("total_duration_minutes", 0),
         })
 
     # Sort by total actions (most active first)
